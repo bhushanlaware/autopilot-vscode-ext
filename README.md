@@ -73,3 +73,4 @@ for posterity, here’s how to install an extension from a .vsix file:
 ## Credits
 
 HackerGPT was developed by HackerRank.
+# autopilot-vscode-ext
