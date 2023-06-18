@@ -74,7 +74,7 @@
             "gpt-3.5-turbo",
             "gpt-4"
           ],
-          "default": "gpt-4",
+          "default": "gpt-3.5-turbo",
           "description": "Choose the GPT model to use for Chat."
         },
         "autopilot.chatContext": {
@@ -85,7 +85,7 @@
             "Opened Files",
             "All Files"
           ],
-          "default": "All Files",
+          "default": "None",
           "description": "Choose the context for the chat. Please note that more context you give it consume more token."
         },
         "autopilot.chatTemperature": {
@@ -95,16 +95,7 @@
           "maximum": 1,
           "description": "Set the temperature for the GPT model."
         },
-        "autopilot.chatRestriction": {
-          "type": "string",
-          "enum": [
-            "None",
-            "No Code"
-          ],
-          "default": "None",
-          "description": "Choose the restriction for the chat."
-        },
-        "autopilot.autoCompletionModel": {
+        "autopilot.completionModel": {
           "type": "string",
           "enum": [
             "text-davinci-003",
@@ -120,7 +111,21 @@
           "default": "text-davinci-002",
           "description": "Choose the GPT model to use for Chat."
         },
-        "autopilot.numberOfCodeSuggestions": {
+        "autopilot.completionTemperature": {
+          "type": "number",
+          "default": 0.5,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Set the temperature for the GPT model."
+        },
+        "autopilot.completionMaxTokens": {
+          "type": "number",
+          "default": 200,
+          "minimum": 10,
+          "maximum": 8000,
+          "description": "Set the temperature for the completion."
+        },
+        "autopilot.numberOfCompletions": {
           "type": "number",
           "default": 1,
           "enum": [
@@ -131,11 +136,10 @@
             5
           ]
         },
-        "autopilot.chatId": {
+        "autopilot.openaiAPIKey": {
           "type": "string",
           "default": "",
-          "description": "Current chat ID",
-          "scope": "application"
+          "description": "Open API Key"
         }
       }
     }

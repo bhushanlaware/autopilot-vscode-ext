@@ -25,7 +25,7 @@ function activate(context) {
     return __awaiter(this, void 0, void 0, function* () {
         // const searchViewProvider = new SearchViewProvider(context);
         // const searchViewPanel = vscode.window.registerWebviewViewProvider(
-        //   "hackergpt.search",
+        //   "autopilot.search",
         //   searchViewProvider,
         //   {
         //     webviewOptions: {
@@ -41,7 +41,7 @@ function activate(context) {
             console.log(key);
             const autoCompleteProvider = new AutoCompleteProvider_1.AutoCompleteProvider(context);
             const chatGPTWebViewProvider = new ChatGPTViewProvider_1.ChatGPTViewProvider(context);
-            const chatGPTWebViewPanel = vscode.window.registerWebviewViewProvider("hackergpt.chat", chatGPTWebViewProvider, {
+            const chatGPTWebViewPanel = vscode.window.registerWebviewViewProvider("autopilot.chat", chatGPTWebViewProvider, {
                 webviewOptions: {
                     retainContextWhenHidden: true,
                 },
@@ -91,7 +91,7 @@ class ConfigProvider {
     getOpenApiKey() {
         return __awaiter(this, void 0, void 0, function* () {
             const config = vscode.workspace.getConfiguration(constant_1.CONFIGURATION_KEYS.name);
-            const apiKey = config.get(constant_1.CONFIGURATION_KEYS.hackergpt.openaiAPIKey);
+            const apiKey = config.get(constant_1.CONFIGURATION_KEYS.autopilot.openaiAPIKey);
             if (apiKey) {
                 return apiKey;
             }
@@ -101,7 +101,7 @@ class ConfigProvider {
                     password: true,
                 });
                 if (input) {
-                    config.update("openApiKey", input, vscode.ConfigurationTarget.Global);
+                    yield config.update(constant_1.CONFIGURATION_KEYS.autopilot.openaiAPIKey, input, vscode.ConfigurationTarget.Global);
                     return input;
                 }
                 else {
@@ -112,7 +112,7 @@ class ConfigProvider {
     }
     updateChatConfig(key, value) {
         return __awaiter(this, void 0, void 0, function* () {
-            const config = vscode.workspace.getConfiguration("hackergpt");
+            const config = vscode.workspace.getConfiguration("autopilot");
             yield config.update(key, value, true);
         });
     }
@@ -135,8 +135,8 @@ exports.SELECTED_CODE_MAX_LENGTH = 1000;
 exports.VIEW_RANGE_MAX_LINES = 100;
 exports.CHAT_HISTORY_FILE_NAME = "chat_history.json";
 exports.CONFIGURATION_KEYS = {
-    name: "hackergpt",
-    hackergpt: {
+    name: "autopilot",
+    autopilot: {
         openaiAPIKey: "openaiAPIKey",
         chat: {
             model: "chatModel",
@@ -198,14 +198,15 @@ class AutoCompleteProvider {
         // Register completion provider
         const disposableCompletionProvider = vscode.languages.registerInlineCompletionItemProvider("*", {
             provideInlineCompletionItems: (document, position, context, cancellationToken) => __awaiter(this, void 0, void 0, function* () {
-                const promptSelection = new vscode.Range(Math.max(0, position.line - constant_1.MAX_PREVIOUS_LINE_FOR_PROMPT), 0, position.line - 1, 1000);
+                const promptSelection = new vscode.Range(Math.max(0, position.line - constant_1.MAX_PREVIOUS_LINE_FOR_PROMPT), 0, Math.max(0, position.line - 1), 1000);
                 const previousCodeBlock = document.getText(promptSelection);
                 const isCurrentLineEmpty = document.lineAt(position.line).text.trim().length === 0;
                 const currentLineSelectionTillCursor = new vscode.Range(position.line, 0, position.line, position.character);
                 const currentLineContentTillCursor = document.getText(currentLineSelectionTillCursor);
                 const currentLineSelectionAfterCursor = new vscode.Range(position.line, position.character, position.line, 1000);
                 const currentLineContentAfterCursor = document.getText(currentLineSelectionAfterCursor);
-                const nextLineContent = document.lineAt(position.line + 1).text;
+                const isLastLine = position.line === document.lineCount - 1;
+                const nextLineContent = isLastLine ? "" : document.lineAt(position.line + 1).text;
                 const prompt = `${previousCodeBlock}\n${currentLineContentTillCursor}` || `// ${document.fileName}`;
                 const stop = isCurrentLineEmpty ? (nextLineContent ? `\n${nextLineContent}` : "\n\n") : currentLineContentAfterCursor || "\n";
                 console.log({ prompt, stop });
@@ -214,6 +215,7 @@ class AutoCompleteProvider {
                 // this.statusBarItem.text = '$(sync~spin)';
                 this.showStatusBar("thinking");
                 cancellationToken.onCancellationRequested(() => {
+                    console.log("cancelled");
                     this.showStatusBar("ideal");
                 });
                 const suggestions = this.cache[prompt] || (yield (0, api_1.getCodeCompletions)(prompt, stop, cancellationToken));
@@ -230,6 +232,7 @@ class AutoCompleteProvider {
     }
     handleSelectionChange(event) {
         if (event.kind === vscode.TextEditorSelectionChangeKind.Keyboard || event.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
+            console.log("should inkove");
             this.showSuggestions();
         }
     }
@@ -240,7 +243,7 @@ class AutoCompleteProvider {
         switch (state) {
             case "ideal":
                 this.statusBarItem.text = "$(hubot)";
-                this.statusBarItem.tooltip = "HackerGPT";
+                this.statusBarItem.tooltip = "Autopilot";
                 break;
             case "thinking":
                 this.statusBarItem.text = "$(sync~spin)";
@@ -17497,8 +17500,8 @@ function cancelGPTRequest() {
 exports.cancelGPTRequest = cancelGPTRequest;
 function askQuestionWithPartialAnswers(question, history, files, onPartialAnswer) {
     return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
-        const config = (0, utils_1.getChatConfig)();
-        const systemInstruction = (0, utils_1.getInstruction)(config.context, files);
+        const { temperature, model, context } = (0, utils_1.getChatConfig)();
+        const systemInstruction = (0, utils_1.getInstruction)(context, files);
         let fullResponse = "";
         abortController = new AbortController();
         const systemMessage = {
@@ -17510,49 +17513,55 @@ function askQuestionWithPartialAnswers(question, history, files, onPartialAnswer
             content: question,
         };
         const messages = [systemMessage, ...history, userMessage];
-        const maxTokens = utils_1.modelMaxTokens[config.model];
+        const maxTokens = utils_1.modelMaxTokens[model];
         const totalTokens = messages.reduce((acc, message) => {
             return acc + (0, encoder_1.encode)(message.content).length;
         }, 0);
-        console.info("Total tokens: ", totalTokens, "Max tokens: ", maxTokens, "Model: ", config.model);
+        console.info("Total tokens: ", totalTokens, "Max tokens: ", maxTokens, "Model: ", model);
         if (totalTokens > maxTokens) {
             console.error("You have reached the maximum number of tokens for this session. Please restart the session.", totalTokens);
             vscode.window.showErrorMessage("You have reached the maximum number of tokens for this session. Please restart the session.");
             return reject("You have reached the maximum number of tokens for this session. Please restart the session.");
         }
-        const gptResponse = (0, utils_1.getOpenApi)().createChatCompletion({
+        const headers = {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${(0, utils_1.getOpenAIKey)()}`,
+        };
+        const url = `${utils_1.openaiBaseURL}/v1/chat/completions`;
+        const body = {
             messages,
-            model: config.model,
-            temperature: config.temperature,
+            temperature,
             stream: true,
-        }, { responseType: "stream" });
-        gptResponse
-            .then((res) => {
-            //@ts-ignore
-            res.data.on("data", (data) => {
-                const lines = data
-                    .toString()
-                    .split("\n")
-                    .filter((line) => line.trim() !== "");
-                for (const line of lines) {
-                    const message = line.replace(/^data: /, "");
-                    if (message === "[DONE]") {
-                        return resolve(fullResponse);
-                    }
-                    try {
-                        const parsed = JSON.parse(message);
-                        const response = parsed.choices[0].delta.content;
-                        if (response) {
-                            onPartialAnswer === null || onPartialAnswer === void 0 ? void 0 : onPartialAnswer(response);
-                            fullResponse += response;
+            model,
+        };
+        function onMessage(data) {
+            var _a2;
+            if (data === "[DONE]") {
+                resolve(fullResponse);
+            }
+            try {
+                const response = JSON.parse(data);
+                if ((_a2 = response == null ? void 0 : response.choices) == null ? void 0 : _a2.length) {
+                    const delta = response.choices[0].delta;
+                    if (delta == null ? void 0 : delta.content) {
+                        const responseText = delta.content;
+                        if (responseText) {
+                            fullResponse += responseText;
+                            onPartialAnswer(responseText);
                         }
                     }
-                    catch (error) { }
                 }
-            });
-        })
-            .catch((error) => {
-            console.error("Error during OpenAI request ", error.message);
+            }
+            catch (err) {
+                console.warn("OpenAI stream SEE event unexpected error", err);
+            }
+        }
+        (0, utils_1.fetchSSE)(url, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+            onMessage,
+            signal: abortController.signal,
         });
     }));
 }
@@ -17565,7 +17574,7 @@ function getCodeCompletions(prompt, stop, cancellationToken) {
             abortController.abort();
         });
         try {
-            const res = yield (0, utils_1.getOpenApi)().createCompletion({
+            const { data } = yield (0, utils_1.getOpenApi)().createCompletion({
                 prompt,
                 stop,
                 model: config.model,
@@ -17573,7 +17582,13 @@ function getCodeCompletions(prompt, stop, cancellationToken) {
             }, {
                 signal: abortController.signal,
             });
-            return res.data.choices.map((choice) => choice.text || "");
+            const choices = (data.choices || []).map((completion) => {
+                if (completion.text) {
+                    return completion.text.startsWith("\n") ? completion.text.slice(1) : completion.text;
+                }
+                return "";
+            });
+            return choices;
         }
         catch (error) {
             console.error(error);
@@ -22695,7 +22710,7 @@ exports.getVscodeControlInstructions = getVscodeControlInstructions;
 function getCompletionConfig() {
     var _a, _b, _c, _d;
     const config = vscode.workspace.getConfiguration(constant_1.CONFIGURATION_KEYS.name);
-    const completionKeys = constant_1.CONFIGURATION_KEYS.hackergpt.completion;
+    const completionKeys = constant_1.CONFIGURATION_KEYS.autopilot.completion;
     const defaults = constant_1.COMPLETION_DEFAULT_CONFIGURATION;
     return {
         model: (_a = config.get(completionKeys.model)) !== null && _a !== void 0 ? _a : defaults.model,
@@ -22708,7 +22723,7 @@ exports.getCompletionConfig = getCompletionConfig;
 function getChatConfig() {
     var _a, _b, _c;
     const config = vscode.workspace.getConfiguration(constant_1.CONFIGURATION_KEYS.name);
-    const chatKeys = constant_1.CONFIGURATION_KEYS.hackergpt.chat;
+    const chatKeys = constant_1.CONFIGURATION_KEYS.autopilot.chat;
     const defaults = constant_1.CHAT_DEFAULT_CONFIGURATION;
     return {
         model: (_a = config.get(chatKeys.model)) !== null && _a !== void 0 ? _a : defaults.model,
@@ -22720,7 +22735,7 @@ exports.getChatConfig = getChatConfig;
 function getOpenAIKey() {
     var _a;
     const config = vscode.workspace.getConfiguration(constant_1.CONFIGURATION_KEYS.name);
-    const openAiKeys = constant_1.CONFIGURATION_KEYS.hackergpt.openaiAPIKey;
+    const openAiKeys = constant_1.CONFIGURATION_KEYS.autopilot.openaiAPIKey;
     return (_a = config.get(openAiKeys)) !== null && _a !== void 0 ? _a : "";
 }
 exports.getOpenAIKey = getOpenAIKey;
@@ -22906,7 +22921,7 @@ class ChatGPTViewProvider {
                 this.files[fileName] = fileContent;
             }
         }));
-        this.disposables.push(fileChangeListener, vscode.commands.registerCommand("hackergpt.askQuestion", (q) => this.handleAskQuestion(q)), vscode.commands.registerCommand("hackergpt.chatHistory", () => this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))), vscode.commands.registerCommand("hackergpt.clearAll", () => this.chatHistoryManager.clearHistory()));
+        this.disposables.push(fileChangeListener, vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)), vscode.commands.registerCommand("autopilot.chatHistory", () => this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))), vscode.commands.registerCommand("autopilot.clearAll", () => this.chatHistoryManager.clearHistory()));
     }
     handleChatChange(chatHistory) {
         if (this.webviewView) {
@@ -23126,19 +23141,19 @@ class ChatHistoryManager {
     }
     get getChatId() {
         var _a;
-        const config = vscode.workspace.getConfiguration('hackergpt');
+        const config = vscode.workspace.getConfiguration("autopilot");
         if (!this.currentChatId) {
-            this.currentChatId = (_a = config.get('chatId')) !== null && _a !== void 0 ? _a : null;
+            this.currentChatId = (_a = config.get("chatId")) !== null && _a !== void 0 ? _a : null;
             if (!this.currentChatId) {
                 this.currentChatId = (0, utils_1.uuid)();
                 // Update in background
-                config.update('chatId', this.currentChatId, true).then(() => { });
+                config.update("chatId", this.currentChatId, true).then(() => { });
             }
         }
         return this.currentChatId;
     }
     get chatHistoryFileUri() {
-        return vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, '.vscode', constant_1.CHAT_HISTORY_FILE_NAME);
+        return vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, ".vscode", constant_1.CHAT_HISTORY_FILE_NAME);
     }
     showAndChangeHistory(onHistorySelect) {
         this.waitForInit().then(() => {
@@ -23147,7 +23162,7 @@ class ChatHistoryManager {
                 return {
                     label: history.title,
                     history,
-                    description: isCurrentChat ? 'Current Chat' : '',
+                    description: isCurrentChat ? "Current Chat" : "",
                     picked: isCurrentChat,
                 };
             });
@@ -23162,7 +23177,7 @@ class ChatHistoryManager {
     clearHistory() {
         this._history = [];
         this._historyMap = {};
-        this.changeCurrentChatId('');
+        this.changeCurrentChatId("");
         this.saveDebounced();
     }
     waitForInit() {
@@ -23179,13 +23194,13 @@ class ChatHistoryManager {
         this.addHistory(this.getChatId, chat);
     }
     addQuestion(question) {
-        this.addMessage(new Chat('user', question));
+        this.addMessage(new Chat("user", question));
     }
     addAnswer(answer) {
-        this.addMessage(new Chat('assistant', answer));
+        this.addMessage(new Chat("assistant", answer));
         // check if current title is 'New Chat' then update it using GPT
-        if (this.getHistory(this.getChatId).title === 'New Chat') {
-            console.log('Updating title using GPT');
+        if (this.getHistory(this.getChatId).title === "New Chat") {
+            console.log("Updating title using GPT");
             this.updateTitleUsingGPT(this.getChatId);
         }
     }
@@ -23198,7 +23213,7 @@ class ChatHistoryManager {
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
-            yield (0, utils_1.createFileIfNotExists)(this.chatHistoryFileUri, '[]');
+            yield (0, utils_1.createFileIfNotExists)(this.chatHistoryFileUri, "[]");
             yield this.load();
             this.isInitiated = true;
         });
@@ -23208,7 +23223,7 @@ class ChatHistoryManager {
     }
     addHistory(chatId, chat) {
         if (!this._historyMap[chatId]) {
-            const title = 'New Chat';
+            const title = "New Chat";
             this._historyMap[chatId] = new ChatHistory(chatId, title, []);
             this._history.push(this._historyMap[chatId]);
         }
@@ -23230,9 +23245,9 @@ class ChatHistoryManager {
         return this._history;
     }
     changeCurrentChatId(chatId) {
-        const config = vscode.workspace.getConfiguration('hackergpt');
+        const config = vscode.workspace.getConfiguration("autopilot");
         this.currentChatId = chatId;
-        config.update('chatId', chatId, true);
+        config.update("chatId", chatId, true);
     }
     save() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -23252,7 +23267,7 @@ class ChatHistoryManager {
                 this._history = [];
                 console.error(error);
             }
-            this._history.forEach(chatHistory => {
+            this._history.forEach((chatHistory) => {
                 this._historyMap[chatHistory.chatId] = chatHistory;
             });
         });

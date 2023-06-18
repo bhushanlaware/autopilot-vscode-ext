@@ -17,7 +17,12 @@ export class AutoCompleteProvider implements vscode.Disposable {
     // Register completion provider
     const disposableCompletionProvider = vscode.languages.registerInlineCompletionItemProvider("*", {
       provideInlineCompletionItems: async (document, position, context, cancellationToken) => {
-        const promptSelection = new vscode.Range(Math.max(0, position.line - MAX_PREVIOUS_LINE_FOR_PROMPT), 0, position.line - 1, 1000);
+        const promptSelection = new vscode.Range(
+          Math.max(0, position.line - MAX_PREVIOUS_LINE_FOR_PROMPT),
+          0,
+          Math.max(0, position.line - 1),
+          1000
+        );
         const previousCodeBlock: string = document.getText(promptSelection);
         const isCurrentLineEmpty = document.lineAt(position.line).text.trim().length === 0;
 
@@ -25,7 +30,8 @@ export class AutoCompleteProvider implements vscode.Disposable {
         const currentLineContentTillCursor = document.getText(currentLineSelectionTillCursor);
         const currentLineSelectionAfterCursor = new vscode.Range(position.line, position.character, position.line, 1000);
         const currentLineContentAfterCursor = document.getText(currentLineSelectionAfterCursor);
-        const nextLineContent = document.lineAt(position.line + 1).text;
+        const isLastLine = position.line === document.lineCount - 1;
+        const nextLineContent = isLastLine ? "" : document.lineAt(position.line + 1).text;
 
         const prompt = `${previousCodeBlock}\n${currentLineContentTillCursor}` || `// ${document.fileName}`;
         const stop = isCurrentLineEmpty ? (nextLineContent ? `\n${nextLineContent}` : "\n\n") : currentLineContentAfterCursor || "\n";
@@ -37,6 +43,7 @@ export class AutoCompleteProvider implements vscode.Disposable {
         // this.statusBarItem.text = '$(sync~spin)';
         this.showStatusBar("thinking");
         cancellationToken.onCancellationRequested(() => {
+          console.log("cancelled");
           this.showStatusBar("ideal");
         });
 
@@ -60,6 +67,7 @@ export class AutoCompleteProvider implements vscode.Disposable {
 
   private handleSelectionChange(event: vscode.TextEditorSelectionChangeEvent) {
     if (event.kind === vscode.TextEditorSelectionChangeKind.Keyboard || event.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
+      console.log("should inkove");
       this.showSuggestions();
     }
   }

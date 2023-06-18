@@ -15,7 +15,7 @@ export class ConfigProvider {
         password: true,
       });
       if (input) {
-        config.update("openApiKey", input, vscode.ConfigurationTarget.Global);
+        await config.update(CONFIGURATION_KEYS.autopilot.openaiAPIKey, input, vscode.ConfigurationTarget.Global);
         return input;
       } else {
         throw new Error("No API Key entered");

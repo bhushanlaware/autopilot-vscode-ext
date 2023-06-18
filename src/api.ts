@@ -4,7 +4,16 @@ import { encode } from "./encoder";
 import { ChatCompletionRequestMessageRoleEnum } from "openai";
 import { Chat } from "./ChatHistoryManager";
 import { Files } from "./types";
-import { getChatConfig, getCompletionConfig, getInstruction, getOpenApi, modelMaxTokens } from "./utils";
+import {
+  fetchSSE,
+  getChatConfig,
+  getCompletionConfig,
+  getInstruction,
+  getOpenAIKey,
+  getOpenApi,
+  modelMaxTokens,
+  openaiBaseURL,
+} from "./utils";
 
 let abortController: AbortController | null = null;
 export function cancelGPTRequest() {
@@ -20,8 +29,8 @@ export function askQuestionWithPartialAnswers(
   onPartialAnswer: (_: string) => void
 ): Promise<string> {
   return new Promise<string>(async (resolve, reject) => {
-    const config = getChatConfig();
-    const systemInstruction = getInstruction(config.context, files);
+    const { temperature, model, context } = getChatConfig();
+    const systemInstruction = getInstruction(context, files);
     let fullResponse = "";
 
     abortController = new AbortController();
@@ -37,13 +46,13 @@ export function askQuestionWithPartialAnswers(
     };
 
     const messages = [systemMessage, ...history, userMessage];
-    const maxTokens = modelMaxTokens[config.model];
+    const maxTokens = modelMaxTokens[model];
 
     const totalTokens = messages.reduce((acc, message) => {
       return acc + encode(message.content).length;
     }, 0);
 
-    console.info("Total tokens: ", totalTokens, "Max tokens: ", maxTokens, "Model: ", config.model);
+    console.info("Total tokens: ", totalTokens, "Max tokens: ", maxTokens, "Model: ", model);
 
     if (totalTokens > maxTokens) {
       console.error("You have reached the maximum number of tokens for this session. Please restart the session.", totalTokens);
@@ -51,43 +60,48 @@ export function askQuestionWithPartialAnswers(
       return reject("You have reached the maximum number of tokens for this session. Please restart the session.");
     }
 
-    const gptResponse = getOpenApi().createChatCompletion(
-      {
-        messages,
-        model: config.model,
-        temperature: config.temperature,
-        stream: true,
-      },
-      { responseType: "stream" }
-    );
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getOpenAIKey()}`,
+    };
 
-    gptResponse
-      .then((res) => {
-        //@ts-ignore
-        res.data.on("data", (data) => {
-          const lines = data
-            .toString()
-            .split("\n")
-            .filter((line: string) => line.trim() !== "");
-          for (const line of lines) {
-            const message = line.replace(/^data: /, "");
-            if (message === "[DONE]") {
-              return resolve(fullResponse);
+    const url = `${openaiBaseURL}/v1/chat/completions`;
+    const body = {
+      messages,
+      temperature,
+      stream: true,
+      model,
+    };
+
+    function onMessage(data: string) {
+      var _a2;
+      if (data === "[DONE]") {
+        resolve(fullResponse);
+      }
+      try {
+        const response = JSON.parse(data);
+        if ((_a2 = response == null ? void 0 : response.choices) == null ? void 0 : _a2.length) {
+          const delta = response.choices[0].delta;
+          if (delta == null ? void 0 : delta.content) {
+            const responseText = delta.content;
+            if (responseText) {
+              fullResponse += responseText;
+              onPartialAnswer(responseText);
             }
-            try {
-              const parsed = JSON.parse(message);
-              const response = parsed.choices[0].delta.content;
-              if (response) {
-                onPartialAnswer?.(response);
-                fullResponse += response;
-              }
-            } catch (error: any) {}
           }
-        });
-      })
-      .catch((error) => {
-        console.error("Error during OpenAI request ", error.message);
-      });
+        }
+      } catch (err) {
+        console.warn("OpenAI stream SEE event unexpected error", err);
+      }
+    }
+
+    fetchSSE(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      onMessage,
+      signal: (abortController as any).signal,
+    });
   });
 }
 
@@ -100,7 +114,7 @@ export async function getCodeCompletions(prompt: string, stop: string, cancellat
   });
 
   try {
-    const res = await getOpenApi().createCompletion(
+    const { data } = await getOpenApi().createCompletion(
       {
         prompt,
         stop,
@@ -111,7 +125,13 @@ export async function getCodeCompletions(prompt: string, stop: string, cancellat
         signal: abortController.signal,
       }
     );
-    return res.data.choices.map((choice) => choice.text || "");
+    const choices = (data.choices || []).map((completion) => {
+      if (completion.text) {
+        return completion.text.startsWith("\n") ? completion.text.slice(1) : completion.text;
+      }
+      return "";
+    });
+    return choices;
   } catch (error) {
     console.error(error);
     return [];
