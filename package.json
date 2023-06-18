@@ -4,7 +4,7 @@
   "description": "Build on top of powerful GPT-3 API to give you edge in coding.",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.70.0"
+    "vscode": "^1.76.0"
   },
   "categories": [
     "Other"
@@ -15,12 +15,36 @@
   "publisher": "hackerrank",
   "browser": "./dist/extension.js",
   "contributes": {
+    "menus": {
+      "view/title": [
+        {
+          "command": "hackergpt.chatHistory",
+          "group": "hackergpt.menu.basic",
+          "when": "view == hackergpt.chat"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "hackergpt.chatHistory",
+        "title": "Chat History"
+      },
+      {
+        "command": "hackergpt.startNew",
+        "title": "Start New Chat"
+      }
+    ],
     "viewsContainers": {
       "activitybar": [
         {
           "id": "hackergpt-chat-view",
           "title": "HackerGPT",
           "icon": "$(hubot)"
+        },
+        {
+          "id": "hackergpt-search-view",
+          "title": "Search",
+          "icon": "resources/google.svg"
         }
       ]
     },
@@ -30,6 +54,13 @@
           "type": "webview",
           "id": "hackergpt.chat",
           "name": "AI Chat"
+        }
+      ],
+      "hackergpt-search-view": [
+        {
+          "type": "webview",
+          "id": "hackergpt.search",
+          "name": "Search"
         }
       ]
     },
@@ -43,8 +74,19 @@
             "gpt-3.5-turbo",
             "gpt-4"
           ],
-          "default": "gpt-3.5-turbo",
+          "default": "gpt-4",
           "description": "Choose the GPT model to use for Chat."
+        },
+        "hackergpt.chatContext": {
+          "type": "string",
+          "enum": [
+            "None",
+            "Current File",
+            "Opened Files",
+            "All Files"
+          ],
+          "default": "All Files",
+          "description": "Choose the context for the chat. Please note that more context you give it consume more token."
         },
         "hackergpt.chatTemperature": {
           "type": "number",
@@ -52,6 +94,15 @@
           "minimum": 0,
           "maximum": 1,
           "description": "Set the temperature for the GPT model."
+        },
+        "hackergpt.chatRestriction": {
+          "type": "string",
+          "enum": [
+            "None",
+            "No Code"
+          ],
+          "default": "None",
+          "description": "Choose the restriction for the chat."
         },
         "hackergpt.autoCompletionModel": {
           "type": "string",
@@ -79,6 +130,12 @@
             4,
             5
           ]
+        },
+        "hackergpt.chatId": {
+          "type": "string",
+          "default": "",
+          "description": "Current chat ID",
+          "scope": "application"
         }
       }
     }
@@ -87,8 +144,8 @@
     "test": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
     "pretest": "yarn run compile-web",
     "vscode:prepublish": "yarn run package-web",
-    "compile-web": "webpack --config extension.webpack.config.js && yarn build-react",
-    "watch-web": "webpack --watch --config extension.webpack.config.js",
+    "compile-web": "webpack --config extension-browser.webpack.config.js && yarn build-react",
+    "watch-web": "webpack --watch --config extension-browser.webpack.config.js",
     "compile": "gulp compile-extension:hackergpt",
     "lint": "eslint src --ext ts",
     "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. .",
@@ -97,20 +154,19 @@
     "postinstall": "yarn build-react",
     "watch": "yarn watch-react & yarn watch-web",
     "extension": "vsce package",
-    "package-web": "yarn build-react && webpack --mode production --devtool hidden-source-map --config extension.webpack.config.js"
+    "package-web": "yarn build-react && webpack --mode production --devtool hidden-source-map --config extension-browser.webpack.config.js"
   },
   "devDependencies": {
     "@babel/core": "^7.16.0",
     "@babel/preset-env": "^7.16.4",
     "@babel/preset-react": "^7.16.0",
     "@babel/preset-typescript": "^7.16.0",
-    "@types/lodash": "^4.14.195",
     "@types/mocha": "^10.0.1",
     "@types/react": "^18.0.2",
     "@types/react-dom": "^18.0.0",
     "@types/react-syntax-highlighter": "^15.5.6",
     "@types/semver": "^7.3.9",
-    "@types/vscode": "^1.70.0",
+    "@types/vscode": "^1.76.0",
     "@types/webpack-env": "^1.18.0",
     "@typescript-eslint/eslint-plugin": "^5.49.0",
     "@typescript-eslint/parser": "^5.49.0",
@@ -118,7 +174,6 @@
     "assert": "^2.0.0",
     "babel-loader": "^8.2.3",
     "css-loader": "^6.5.1",
-    "css-minimizer-webpack-plugin": "^5.0.1",
     "eslint": "^8.33.0",
     "mini-css-extract-plugin": "^2.4.5",
     "mocha": "^10.1.0",

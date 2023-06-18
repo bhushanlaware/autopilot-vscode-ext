@@ -73,7 +73,7 @@ function ChatApp() {
 	}
 
 	function handleCancel() {
-		vscode.postMessage({ type: 'cancel_question', ans: prePartialAnswer });
+		vscode.postMessage({ type: 'cancel_question' });
 		setHistory([...history, { role: 'assistant', content: prePartialAnswer }]);
 		setPrevPartialAnswer('');
 	}
@@ -105,12 +105,11 @@ function ChatApp() {
 					<button className='danger mr-2' onClick={handleCancel}>Stop</button> :
 					<button className='primary mr-2' onClick={handleClick}>Send</button>
 				}
-				{/* DISABLE TO CLEAR THE CHAT AND START NEW ONE */}
-				{/* {
+				{
 					history.length ?
 						<button className='warning' onClick={clearChat}><ClearIcon /></button>
 						: null
-				} */}
+				}
 			</div>
 		</div>
 	);
@@ -122,16 +121,12 @@ type ChatProps = {
 };
 
 function Chat({ message }: ChatProps) {
-	function handleCopy(code: string) {
-		vscode.postMessage({ type: 'handle_copy', code });
-	}
-
 	return (
 		<div className="chat">
 			<div className="message">
 				<div className="message__author">{message.role}</div>
 				<div className="message__text">
-					<MessageBody onCopy={handleCopy} content={message.content} />
+					<MessageBody content={message.content} />
 				</div>
 			</div>
 		</div>

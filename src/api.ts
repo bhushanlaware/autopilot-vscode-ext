@@ -1,24 +1,26 @@
 
-import { ChatConfig, CompletionConfig, Files } from './types';
+import * as vscode from 'vscode';
+// @ts-ignore
+import { encode } from './encoder';
+import { ChatConfig, ChatModel, CompletionConfig, CompletionModel, Files } from './types';
 
-const devUrl = 'http://localhost:3002';
-const gcpAppEngine = 'https://vm-provider-dev.uc.r.appspot.com';
-const gcpCloudRun = 'https://hackergpt-backend-rcooobifwa-uc.a.run.app';
+import { fetchSSE, getInstruction, modelMaxTokens, openaiBaseURL } from './utils';
 
-function getEndpoints(url: string) {
-	return {
-		completions: `${url}/completions`,
-		chatStream: `${url}/chat/stream`,
-		chatHistory: `${url}/chat/history`,
-		createIndex: `${url}/indexing/create`,
-		updateIndex: `${url}/indexing/update`,
-	};
-}
+// Implement Gateway to secure token
+const apiKey = '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';
 
-const endpoints = getEndpoints(gcpCloudRun);
+const Roles = {
+	Assistant: 'assistant',
+	System: 'system',
+	User: 'user',
+};
+
+const headers = {
+	'Content-Type': 'application/json',
+	'Authorization': `Bearer ${apiKey}`,
+};
 
 let abortController: AbortController | null = null;
-
 export function cancelGPTRequest() {
 	if (abortController) {
 		abortController.abort();
@@ -28,87 +30,89 @@ export function cancelGPTRequest() {
 export function askQuestionWithPartialAnswers(
 	question: string,
 	onPartialAnswer: (_: string) => void,
-	chatConfig: ChatConfig) {
-	const {
-		sessionId,
-		controlId,
-		chatModel,
-		chatRestriction,
-		chatTemperature,
-	} = chatConfig;
+	chatConfig: ChatConfig,
+	files: Files): Promise<string> {
+	return new Promise<string>(async (resolve, reject) => {
 
-	const body = {
-		sessionId,
-		controlId,
-		question,
-		options: {
-			model: chatModel,
-			temperature: chatTemperature,
-			restrictions: chatRestriction,
-		}
-	};
+		const {
+			chatContext,
+			chatMessages,
+			chatModel,
+			chatRestriction,
+			chatTemperature,
+		} = chatConfig;
 
-	return streamFetch(endpoints.chatStream,
-		body,
-		onPartialAnswer,
-	);
-}
+		const systemInstruction = getInstruction(chatRestriction, chatContext, files);
 
-function streamFetch(url: string, requestBody: any, callback: Function): Promise<string> {
-	return new Promise(async (res, rej) => {
-		try {
-			abortController = new AbortController();
-			const response = await fetch(url, {
-				method: 'POST',
-				body: JSON.stringify(requestBody),
-				headers: {
-					'Access-Control-Allow-Origin': '*',
-					'Content-Type': 'application/json',
-				},
-				signal: abortController?.signal,
-			});
-			// @ts-ignore
+		let fullResponse = '';
+		abortController = new AbortController();
 
-			const reader = response.body.getReader();
-			let result = '';
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) {
-					return res(result);
-				}
-				const newValue = new TextDecoder('utf-8').decode(value);
-				result += newValue;
-				callback(newValue);
-			}
-		} catch (error) {
-			console.error(error);
-			rej(error);
+		const systemMessage = {
+			role: Roles.System,
+			content: systemInstruction,
 		};
-	});
-}
 
-export async function getChatHistory(sessionId: string, controlId: string) {
-	const body = {
-		sessionId,
-		controlId,
-	};
+		const userMessage = {
+			role: Roles.User,
+			content: question,
+		};
 
-	try {
-		const res = await fetch(endpoints.chatHistory, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
+		const messages = [systemMessage, ...chatMessages, userMessage];
+		const maxTokens = modelMaxTokens[chatModel];
+		const model = chatModel;
+
+		const totalTokens = messages.reduce((acc, message) => {
+			return acc + encode(message.content).length;
+		}, 0);
+
+		console.info('Chat Config: ', chatConfig);
+		console.info('Total tokens: ', totalTokens, 'Max tokens: ', maxTokens, 'Model: ', chatConfig.chatModel);
+		console.info('Messages: ', messages);
+
+		if (totalTokens > maxTokens) {
+			console.error('You have reached the maximum number of tokens for this session. Please restart the session.', totalTokens);
+			vscode.window.showErrorMessage('You have reached the maximum number of tokens for this session. Please restart the session.');
+			return reject('You have reached the maximum number of tokens for this session. Please restart the session.');
+		}
+
+		const url = `${openaiBaseURL}/v1/chat/completions`;
+		const body = {
+			messages,
+			temperature: chatTemperature,
+			stream: true,
+			model,
+		};
+
+		function onMessage(data: string) {
+			var _a2;
+			if (data === "[DONE]") {
+				resolve(fullResponse);
+			}
+			try {
+				const response = JSON.parse(data);
+				if ((_a2 = response == null ? void 0 : response.choices) == null ? void 0 : _a2.length) {
+					const delta = response.choices[0].delta;
+					if (delta == null ? void 0 : delta.content) {
+						const responseText = delta.content;
+						if (responseText) {
+							fullResponse += responseText;
+							onPartialAnswer(responseText);
+						}
+					}
+				}
+			} catch (err) {
+				console.warn("OpenAI stream SEE event unexpected error", err);
+			}
+		}
+
+		fetchSSE(url, {
+			method: "POST",
+			headers,
 			body: JSON.stringify(body),
+			onMessage,
+			signal: (abortController as any).signal,
 		});
-		const data = await res.json();
-
-		return data || [];
-	} catch (e) {
-		console.error(e);
-		return [];
-	}
-
+	});
 }
 
 export async function getCodeCompletions({ prompt, model, stop, cancellationToken, n }: CompletionConfig): Promise<string[]> {
@@ -118,66 +122,56 @@ export async function getCodeCompletions({ prompt, model, stop, cancellationToke
 		abortController.abort();
 	});
 
-	console.log(prompt);
 	const body = {
 		prompt,
-		options: {
-			stop,
-			model,
-		}
+		temperature: 0,
+		stream: false,
+		max_tokens: 500,
+		model,
+		n: 1,
+		stop
 	};
 
-	const url = endpoints.completions;
-
+	const url = `${openaiBaseURL}/v1/completions`;
 	const response = await fetch(url, {
 		method: "POST",
-		headers: {
-			'Content-Type': 'application/json',
-		},
+		headers,
 		signal: abortController.signal,
 		body: JSON.stringify(body),
 	});
 
 	const data = await response.json();
-	return data;
+	const choices = (data.choices || []).map((completion: { text: string }) => {
+		return completion.text.startsWith("\n") ? completion.text.slice(1) : completion.text;
+	});
+	return choices;
 }
 
+export async function getChatTitle(chatContext: string): Promise<string> {
+	const url = `${openaiBaseURL}/v1/completions`;
+	console.log('Chat context:\n\n', chatContext);
+	const prompt = `Suggest me good title for this chat:\n\n${chatContext}\n\nTitle:`;
 
-export async function createIndex(sessionId: string, controlId: string, files: Files) {
 	const body = {
-		sessionId,
-		controlId,
-		files,
+		prompt,
+		temperature: 0.1,
+		stream: false,
+		max_tokens: 50,
+		model: 'text-curie-001',
+		n: 1,
+		stop: '\n'
 	};
-
-	const url = endpoints.createIndex;
 
 	const response = await fetch(url, {
 		method: "POST",
-		headers: {
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify(body),
-	});
-
-	const data = await response.json();
-	return data;
-}
-
-export async function updateIndex(sessionId: string, controlId: string, files: Files) {
-	const body = {
-		sessionId,
-		controlId,
-		files,
-	};
-	const url = endpoints.updateIndex;
-	const response = await fetch(url, {
-		method: "POST",
-		headers: {
-			'Content-Type': 'application/json',
-		},
+		headers,
 		body: JSON.stringify(body),
 	});
 	const data = await response.json();
-	return data;
+
+	const choices = (data.choices || []).map((completion: { text: string }) => {
+		return completion.text;
+	});
+	console.log('Choices: ', choices);
+	return choices[0];
 }

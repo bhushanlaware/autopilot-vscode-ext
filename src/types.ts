@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { Chat } from './ChatHistoryManager';
 
 export type Files = { [key: string]: string };
 export type Role = 'user' | 'assistant' | 'system';
@@ -9,10 +10,10 @@ export type CompletionModel = "text-davinci-003" | "text-davinci-002" | "text-cu
 
 export interface ChatConfig {
 	chatModel: ChatModel;
+	chatContext: ChatContext;
 	chatTemperature: number;
 	chatRestriction: ChatRestriction;
-	sessionId: string,
-	controlId: string,
+	chatMessages: Chat[];
 };
 
 export interface CompletionConfig {
@@ -22,8 +23,3 @@ export interface CompletionConfig {
 	stop: string;
 	model: CompletionModel;
 }
-
-export type Chat = {
-	role: 'assistant' | 'user' | 'system',
-	content: string,
-};

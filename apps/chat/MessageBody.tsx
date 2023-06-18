@@ -6,10 +6,10 @@ import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import CodeCopyBtn from './CodeCopyBtn';
 
-export default function MessageBody({ content, onCopy }: any) {
+export default function MessageBody({ content }: any) {
 	// Add the CodeCopyBtn component to our PRE element
 	const Pre = ({ children }: any) => <pre className="message-pre">
-		<CodeCopyBtn onCopy={onCopy}>{children}</CodeCopyBtn>
+		<CodeCopyBtn>{children}</CodeCopyBtn>
 		{children}
 	</pre>;
 

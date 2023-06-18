@@ -1,61 +1,57 @@
-import { debounce } from 'lodash';
 import * as vscode from 'vscode';
-import { askQuestionWithPartialAnswers, cancelGPTRequest, createIndex, getChatHistory, updateIndex } from './api';
-import { Chat, ChatConfig, Files } from './types';
-import { readFiles } from './utils';
+import { askQuestionWithPartialAnswers, cancelGPTRequest } from './api';
+import ChatHistoryManager, { ChatHistory } from './ChatHistoryManager';
+import { ChatConfig, Files } from './types';
+import { createFileIfNotExists, readFiles } from './utils';
+
 export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
+	private files: Files = {};
 	private disposables: vscode.Disposable[] = [];
 	private webviewView: vscode.WebviewView | undefined;
-	private history: Chat[] = [];
-	private pendingFileChangesToBeIndexed: Files = {};
+	private chatHistoryManager: ChatHistoryManager;
 
 	constructor(private readonly _context: vscode.ExtensionContext) {
+		this.chatHistoryManager = new ChatHistoryManager();
+		this.chatHistoryManager.waitForInit().then(() => {
+			const history = this.chatHistoryManager.currentChat;
+			this.handleChatChange(history);
+		});
 
-		const debouncedUpdateIndex = debounce(this.updateIndexing.bind(this), 3000);
 		const fileChangeListener = vscode.workspace.onDidChangeTextDocument(async (changes) => {
 			for (const change of changes.contentChanges) {
 				const fileName = changes.document.fileName;
 				const fileContent = changes.document.getText();
-				this.pendingFileChangesToBeIndexed[fileName] = fileContent;
+				this.files[fileName] = fileContent;
 			}
-			debouncedUpdateIndex();
 		});
 
 		this.disposables.push(
 			fileChangeListener,
-			vscode.commands.registerCommand('hackergpt.askQuestion', this.handleAskQuestion.bind(this)),
-			vscode.commands.registerCommand('vscode.onCollabCustomEvent', this.handleVscodeCollabEvent.bind(this))
+			vscode.commands.registerCommand('hackergpt.askQuestion', (q) => this.handleAskQuestion(q)),
+			vscode.commands.registerCommand('hackergpt.chatHistory', () => this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))),
+			vscode.commands.registerCommand('hackergpt.clearAll', () => this.chatHistoryManager.clearHistory()),
 		);
-
-		const { sessionId, controlId } = this.config;
-
-		if (sessionId && controlId) {
-			getChatHistory(sessionId, controlId).then((history) => {
-				this.history = history;
-				this.updateWebview();
-			});
-		}
 	}
 
-	private updateWebview() {
+	private handleChatChange(chatHistory: ChatHistory) {
 		if (this.webviewView) {
 			this.webviewView.webview.postMessage({
-				type: 'set_history',
-				history: this.history,
+				type: 'chatHistory',
+				data: chatHistory,
 			});
 		}
 	}
-
 
 	get config(): ChatConfig {
 		const config = vscode.workspace.getConfiguration('hackergpt');
+		const chatMessages = this.chatHistoryManager.getMessages();
 
 		return {
 			chatModel: (config.get('chatModel')) || 'gpt-3.5-turbo',
+			chatContext: (config.get('chatContext')) || 'None',
 			chatTemperature: (config.get('chatTemperature')) || 0.5,
 			chatRestriction: (config.get('chatRestriction')) || 'None',
-			sessionId: this._context.globalState.get('hackergpt.sessionId') || '',
-			controlId: this._context.globalState.get('hackergpt.controlId') || '',
+			chatMessages,
 		};
 	}
 
@@ -64,48 +60,10 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
 		await config.update(key, value, true);
 	};
 
-	private createIndexing() {
-		const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
-		statusBar.text = '$(search) indexing';
-		statusBar.tooltip = 'HackerGPT Indexing files';
-		statusBar.show();
-		this.disposables.push(statusBar);
-
+	private readVscodeFiles() {
 		readFiles(this._context.extensionUri.fsPath).then((files) => {
-
-			createIndex(this.config.sessionId, this.config.controlId, files).then((index) => {
-				statusBar.hide();
-			}).catch((err) => {
-				console.error(err);
-				statusBar.hide();
-			});
+			this.files = files;
 		});
-	}
-
-	private updateIndexing() {
-		const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
-		statusBar.text = '$(search) indexing';
-		statusBar.tooltip = 'HackerGPT updating indexing';
-		statusBar.show();
-		this.disposables.push(statusBar);
-		const files = this.pendingFileChangesToBeIndexed;
-		updateIndex(this.config.sessionId, this.config.controlId, files).then((index) => {
-			statusBar.hide();
-			this.pendingFileChangesToBeIndexed = {};
-		});
-	}
-
-
-	private handleVscodeCollabEvent(event: { type: string, payload: any }) {
-		const { type, payload } = event;
-		if (type === 'hackerGPTAddChat') {
-			const { role, content } = payload;
-			this.history.push({
-				role,
-				content,
-			});
-			this.updateWebview();
-		}
 	}
 
 	public resolveWebviewView(
@@ -129,8 +87,7 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
 			switch (data.type) {
 				case 'onMountChat': {
 					webViewLoadedResolve();
-					this.createIndexing();
-					this.updateWebview();
+					this.readVscodeFiles();
 					break;
 				}
 				case 'ask_question':
@@ -138,27 +95,22 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
 					break;
 
 				case 'cancel_question':
-					this.addChat({
-						role: 'assistant',
-						content: data.ans,
-					});
 					cancelGPTRequest();
 					break;
 
-				case 'handle_copy':
-					this.handleCopyCode(data.code);
+				case 'clear_chat':
+					this.chatHistoryManager.startNewChat();
 					break;
-				default:
+				case 'insert_code':
+					this.insertText('/src/App.js', 10, 1, data.code);
 					break;
 			}
 		});
 
+		const waitForHistoryMangerInit = this.chatHistoryManager.waitForInit();
 
-		return webviewLoadedThenable;
-	}
-
-	private handleCopyCode(code: string) {
-		vscode.commands.executeCommand('hackerrank.handleCopyToClipboard', { text: code });
+		return new Promise<void>(resolve => Promise.all([webviewLoadedThenable, waitForHistoryMangerInit])
+			.then(() => resolve()));
 	}
 
 	private handleAskQuestion(question: string) {
@@ -167,12 +119,10 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
 			return;
 		}
 
-		this.webviewView?.show(false);
+		this.chatHistoryManager.addQuestion(question);
 
-		this.addChat({
-			role: 'user',
-			content: question,
-		});
+		// Focus on webview if it is not focused
+		this.webviewView?.show(false);
 
 		const onPartialAnswer = ((partialAnswer: string) => {
 			webviewView.webview.postMessage({
@@ -181,26 +131,11 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
 			});
 		});
 
-		askQuestionWithPartialAnswers(question, onPartialAnswer, this.config).then((ans) => {
+		askQuestionWithPartialAnswers(question, onPartialAnswer, this.config, this.files).then((ans) => {
+			this.chatHistoryManager.addAnswer(ans);
 			webviewView.webview.postMessage({
 				type: 'partial_answer_done',
 			});
-			this.addChat({
-				role: 'assistant',
-				content: ans,
-			});
-		});
-	}
-
-	private addChat(chat: Chat) {
-		this.history.push(chat);
-		this.sendCollabCustomEvent(chat);
-	}
-
-	private sendCollabCustomEvent(chat: Chat) {
-		vscode.commands.executeCommand('vscode.sendCollabCustomEvent', {
-			type: 'hackerGPTAddChat',
-			payload: chat
 		});
 	}
 
@@ -240,6 +175,65 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
 			<script nonce='${nonce}' src='${scriptUri}'></script>
 		</html>
 	`;
+	}
+
+	private createFile(fileName: string, fileContent: string) {
+		const fileUri = vscode.Uri.parse(fileName);
+		createFileIfNotExists(fileUri, fileContent);
+	}
+
+	insertTextHelper(code: string) {
+		const chat = this.chatHistoryManager.getMessages().find(chat => chat.content.includes(code));
+		if (!chat) {
+			return;
+		}
+
+	}
+	private insertText(filepath: string, line: number, col: number, text: string) {
+		const document = vscode.workspace.textDocuments.find(
+			(doc) => doc.uri.fsPath.endsWith(filepath)
+		);
+
+		const fileUri = document?.uri;
+		if (fileUri) {
+			vscode.workspace.openTextDocument(fileUri).then(document => {
+				const edit = new vscode.WorkspaceEdit();
+				edit.insert(fileUri, new vscode.Position(line, col), text);
+				return vscode.workspace.applyEdit(edit);
+			});
+		}
+	}
+
+	private openFile(filepath: string) {
+		const fileUri = vscode.Uri.parse(filepath);
+		vscode.workspace.openTextDocument(fileUri).then(document => {
+			vscode.window.showTextDocument(document);
+		});
+	}
+
+	private deleteFile(filepath: string) {
+		const fileUri = vscode.Uri.parse(filepath);
+		vscode.workspace.openTextDocument(fileUri).then(document => {
+			vscode.workspace.fs.delete(fileUri);
+		});
+	}
+
+	private replaceText(filepath: string, line: number, col: number, text: string) {
+		const fileUri = vscode.Uri.parse(filepath);
+		vscode.workspace.openTextDocument(fileUri).then(document => {
+			const edit = new vscode.WorkspaceEdit();
+			edit.replace(fileUri, new vscode.Range(line, col, line, col + text.length), text);
+			return vscode.workspace.applyEdit(edit);
+		});
+	}
+
+	private deleteText(filepath: string, line: number, col: number, text: string) {
+		const fileUri = vscode.Uri.parse(filepath);
+		vscode.workspace.openTextDocument(fileUri).then(document => {
+			const edit = new vscode.WorkspaceEdit();
+			edit.delete(fileUri, new vscode.Range(line, col, line, col + text.length));
+			return vscode.workspace.applyEdit(edit);
+		});
 	}
 
 	dispose() {
