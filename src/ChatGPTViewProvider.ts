@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
-import { askQuestionWithPartialAnswers, cancelGPTRequest } from "./api";
 import ChatHistoryManager, { ChatHistory } from "./ChatHistoryManager";
-import { ChatConfig, Files } from "./types";
+import { askQuestionWithPartialAnswers, cancelGPTRequest } from "./api";
+import { Files } from "./types";
 import { createFileIfNotExists, readFiles } from "./utils";
 
 export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
@@ -17,29 +17,21 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
       this.handleChatChange(history);
     });
 
-    const fileChangeListener = vscode.workspace.onDidChangeTextDocument(
-      async (changes) => {
-        for (const change of changes.contentChanges) {
-          const fileName = changes.document.fileName;
-          const fileContent = changes.document.getText();
-          this.files[fileName] = fileContent;
-        }
+    const fileChangeListener = vscode.workspace.onDidChangeTextDocument(async (changes) => {
+      for (const change of changes.contentChanges) {
+        const fileName = changes.document.fileName;
+        const fileContent = changes.document.getText();
+        this.files[fileName] = fileContent;
       }
-    );
+    });
 
     this.disposables.push(
       fileChangeListener,
-      vscode.commands.registerCommand("hackergpt.askQuestion", (q) =>
-        this.handleAskQuestion(q)
-      ),
+      vscode.commands.registerCommand("hackergpt.askQuestion", (q) => this.handleAskQuestion(q)),
       vscode.commands.registerCommand("hackergpt.chatHistory", () =>
-        this.chatHistoryManager.showAndChangeHistory(
-          this.handleChatChange.bind(this)
-        )
+        this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))
       ),
-      vscode.commands.registerCommand("hackergpt.clearAll", () =>
-        this.chatHistoryManager.clearHistory()
-      )
+      vscode.commands.registerCommand("hackergpt.clearAll", () => this.chatHistoryManager.clearHistory())
     );
   }
 
@@ -52,39 +44,15 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  get config(): ChatConfig {
-    const config = vscode.workspace.getConfiguration("hackergpt");
-    const chatMessages = this.chatHistoryManager.getMessages();
-
-    return {
-      chatModel: config.get("chatModel") || "gpt-3.5-turbo",
-      chatContext: config.get("chatContext") || "None",
-      chatTemperature: config.get("chatTemperature") || 0.5,
-      chatRestriction: config.get("chatRestriction") || "None",
-      chatMessages,
-    };
-  }
-
-  async updateConfig(key: keyof ChatConfig, value: any) {
-    const config = vscode.workspace.getConfiguration("hackergpt");
-    await config.update(key, value, true);
-  }
-
   private readVscodeFiles() {
     readFiles(this._context.extensionUri.fsPath).then((files) => {
       this.files = files;
     });
   }
 
-  public resolveWebviewView(
-    webviewView: vscode.WebviewView,
-    context: vscode.WebviewViewResolveContext,
-    token: vscode.CancellationToken
-  ) {
+  public resolveWebviewView(webviewView: vscode.WebviewView, context: vscode.WebviewViewResolveContext, token: vscode.CancellationToken) {
     let webViewLoadedResolve: () => void = () => {};
-    const webviewLoadedThenable = new Promise<void>(
-      (resolve) => (webViewLoadedResolve = resolve)
-    );
+    const webviewLoadedThenable = new Promise<void>((resolve) => (webViewLoadedResolve = resolve));
 
     webviewView.webview.options = {
       enableScripts: true,
@@ -121,11 +89,7 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
 
     const waitForHistoryMangerInit = this.chatHistoryManager.waitForInit();
 
-    return new Promise<void>((resolve) =>
-      Promise.all([webviewLoadedThenable, waitForHistoryMangerInit]).then(() =>
-        resolve()
-      )
-    );
+    return new Promise<void>((resolve) => Promise.all([webviewLoadedThenable, waitForHistoryMangerInit]).then(() => resolve()));
   }
 
   private handleAskQuestion(question: string) {
@@ -146,12 +110,10 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
       });
     };
 
-    askQuestionWithPartialAnswers(
-      question,
-      onPartialAnswer,
-      this.config,
-      this.files
-    ).then((ans) => {
+    const { files, chatHistoryManager } = this;
+    const history = chatHistoryManager.currentChat.history;
+
+    askQuestionWithPartialAnswers(question, history, files, onPartialAnswer).then((ans) => {
       this.chatHistoryManager.addAnswer(ans);
       webviewView.webview.postMessage({
         type: "partial_answer_done",
@@ -161,13 +123,9 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
 
   private _getHtmlForWebview(webview: vscode.Webview) {
     // Get the local path to main script run in the webview, then convert it to a uri we can use in the webview.
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._context.extensionUri, "media", "chat.js")
-    );
+    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._context.extensionUri, "media", "chat.js"));
 
-    const styleMainUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._context.extensionUri, "media", "chat.css")
-    );
+    const styleMainUri = webview.asWebviewUri(vscode.Uri.joinPath(this._context.extensionUri, "media", "chat.css"));
 
     // Use a nonce to only allow a specific script to be run.
     const nonce = getNonce();
@@ -203,22 +161,13 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
   }
 
   insertTextHelper(code: string) {
-    const chat = this.chatHistoryManager
-      .getMessages()
-      .find((chat) => chat.content.includes(code));
+    const chat = this.chatHistoryManager.getMessages().find((chat) => chat.content.includes(code));
     if (!chat) {
       return;
     }
   }
-  private insertText(
-    filepath: string,
-    line: number,
-    col: number,
-    text: string
-  ) {
-    const document = vscode.workspace.textDocuments.find((doc) =>
-      doc.uri.fsPath.endsWith(filepath)
-    );
+  private insertText(filepath: string, line: number, col: number, text: string) {
+    const document = vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath.endsWith(filepath));
 
     const fileUri = document?.uri;
     if (fileUri) {
@@ -244,37 +193,20 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private replaceText(
-    filepath: string,
-    line: number,
-    col: number,
-    text: string
-  ) {
+  private replaceText(filepath: string, line: number, col: number, text: string) {
     const fileUri = vscode.Uri.parse(filepath);
     vscode.workspace.openTextDocument(fileUri).then((document) => {
       const edit = new vscode.WorkspaceEdit();
-      edit.replace(
-        fileUri,
-        new vscode.Range(line, col, line, col + text.length),
-        text
-      );
+      edit.replace(fileUri, new vscode.Range(line, col, line, col + text.length), text);
       return vscode.workspace.applyEdit(edit);
     });
   }
 
-  private deleteText(
-    filepath: string,
-    line: number,
-    col: number,
-    text: string
-  ) {
+  private deleteText(filepath: string, line: number, col: number, text: string) {
     const fileUri = vscode.Uri.parse(filepath);
     vscode.workspace.openTextDocument(fileUri).then((document) => {
       const edit = new vscode.WorkspaceEdit();
-      edit.delete(
-        fileUri,
-        new vscode.Range(line, col, line, col + text.length)
-      );
+      edit.delete(fileUri, new vscode.Range(line, col, line, col + text.length));
       return vscode.workspace.applyEdit(edit);
     });
   }
@@ -288,8 +220,7 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
 
 function getNonce() {
   let text = "";
-  const possible =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   for (let i = 0; i < 32; i++) {
     text += possible.charAt(Math.floor(Math.random() * possible.length));
   }

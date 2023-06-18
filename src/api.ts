@@ -1,34 +1,10 @@
 import * as vscode from "vscode";
 // @ts-ignore
 import { encode } from "./encoder";
-import {
-  ChatConfig,
-  ChatModel,
-  CompletionConfig,
-  CompletionModel,
-  Files,
-} from "./types";
-
-import {
-  fetchSSE,
-  getInstruction,
-  modelMaxTokens,
-  openaiBaseURL,
-} from "./utils";
-
-// Implement Gateway to secure token
-const apiKey = "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";
-
-const Roles = {
-  Assistant: "assistant",
-  System: "system",
-  User: "user",
-};
-
-const headers = {
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${apiKey}`,
-};
+import { ChatCompletionRequestMessageRoleEnum } from "openai";
+import { Chat } from "./ChatHistoryManager";
+import { Files } from "./types";
+import { getChatConfig, getCompletionConfig, getInstruction, getOpenApi, modelMaxTokens } from "./utils";
 
 let abortController: AbortController | null = null;
 export function cancelGPTRequest() {
@@ -39,178 +15,117 @@ export function cancelGPTRequest() {
 
 export function askQuestionWithPartialAnswers(
   question: string,
-  onPartialAnswer: (_: string) => void,
-  chatConfig: ChatConfig,
-  files: Files
+  history: Chat[],
+  files: Files,
+  onPartialAnswer: (_: string) => void
 ): Promise<string> {
   return new Promise<string>(async (resolve, reject) => {
-    const {
-      chatContext,
-      chatMessages,
-      chatModel,
-      chatRestriction,
-      chatTemperature,
-    } = chatConfig;
-
-    const systemInstruction = getInstruction(
-      chatRestriction,
-      chatContext,
-      files
-    );
-
+    const config = getChatConfig();
+    const systemInstruction = getInstruction(config.context, files);
     let fullResponse = "";
+
     abortController = new AbortController();
 
     const systemMessage = {
-      role: Roles.System,
+      role: ChatCompletionRequestMessageRoleEnum.System,
       content: systemInstruction,
     };
 
     const userMessage = {
-      role: Roles.User,
+      role: ChatCompletionRequestMessageRoleEnum.User,
       content: question,
     };
 
-    const messages = [systemMessage, ...chatMessages, userMessage];
-    const maxTokens = modelMaxTokens[chatModel];
-    const model = chatModel;
+    const messages = [systemMessage, ...history, userMessage];
+    const maxTokens = modelMaxTokens[config.model];
 
     const totalTokens = messages.reduce((acc, message) => {
       return acc + encode(message.content).length;
     }, 0);
 
-    console.info("Chat Config: ", chatConfig);
-    console.info(
-      "Total tokens: ",
-      totalTokens,
-      "Max tokens: ",
-      maxTokens,
-      "Model: ",
-      chatConfig.chatModel
-    );
-    console.info("Messages: ", messages);
+    console.info("Total tokens: ", totalTokens, "Max tokens: ", maxTokens, "Model: ", config.model);
 
     if (totalTokens > maxTokens) {
-      console.error(
-        "You have reached the maximum number of tokens for this session. Please restart the session.",
-        totalTokens
-      );
-      vscode.window.showErrorMessage(
-        "You have reached the maximum number of tokens for this session. Please restart the session."
-      );
-      return reject(
-        "You have reached the maximum number of tokens for this session. Please restart the session."
-      );
+      console.error("You have reached the maximum number of tokens for this session. Please restart the session.", totalTokens);
+      vscode.window.showErrorMessage("You have reached the maximum number of tokens for this session. Please restart the session.");
+      return reject("You have reached the maximum number of tokens for this session. Please restart the session.");
     }
 
-    const url = `${openaiBaseURL}/v1/chat/completions`;
-    const body = {
-      messages,
-      temperature: chatTemperature,
-      stream: true,
-      model,
-    };
+    const gptResponse = getOpenApi().createChatCompletion(
+      {
+        messages,
+        model: config.model,
+        temperature: config.temperature,
+        stream: true,
+      },
+      { responseType: "stream" }
+    );
 
-    function onMessage(data: string) {
-      var _a2;
-      if (data === "[DONE]") {
-        resolve(fullResponse);
-      }
-      try {
-        const response = JSON.parse(data);
-        if (
-          (_a2 = response == null ? void 0 : response.choices) == null
-            ? void 0
-            : _a2.length
-        ) {
-          const delta = response.choices[0].delta;
-          if (delta == null ? void 0 : delta.content) {
-            const responseText = delta.content;
-            if (responseText) {
-              fullResponse += responseText;
-              onPartialAnswer(responseText);
+    gptResponse
+      .then((res) => {
+        //@ts-ignore
+        res.data.on("data", (data) => {
+          const lines = data
+            .toString()
+            .split("\n")
+            .filter((line: string) => line.trim() !== "");
+          for (const line of lines) {
+            const message = line.replace(/^data: /, "");
+            if (message === "[DONE]") {
+              return resolve(fullResponse);
             }
+            try {
+              const parsed = JSON.parse(message);
+              const response = parsed.choices[0].delta.content;
+              if (response) {
+                onPartialAnswer?.(response);
+                fullResponse += response;
+              }
+            } catch (error: any) {}
           }
-        }
-      } catch (err) {
-        console.warn("OpenAI stream SEE event unexpected error", err);
-      }
-    }
-
-    fetchSSE(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-      onMessage,
-      signal: (abortController as any).signal,
-    });
+        });
+      })
+      .catch((error) => {
+        console.error("Error during OpenAI request ", error.message);
+      });
   });
 }
 
-export async function getCodeCompletions({
-  prompt,
-  model,
-  stop,
-  cancellationToken,
-  n,
-}: CompletionConfig): Promise<string[]> {
+export async function getCodeCompletions(prompt: string, stop: string, cancellationToken: vscode.CancellationToken): Promise<string[]> {
+  const config = getCompletionConfig();
   const abortController = new AbortController();
+
   cancellationToken.onCancellationRequested(() => {
     abortController.abort();
   });
 
-  const body = {
-    prompt,
-    temperature: 0,
-    stream: false,
-    max_tokens: 500,
-    model,
-    n: 1,
-    stop,
-  };
-
-  const url = `${openaiBaseURL}/v1/completions`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    signal: abortController.signal,
-    body: JSON.stringify(body),
-  });
-
-  const data = await response.json();
-  const choices = (data.choices || []).map((completion: { text: string }) => {
-    return completion.text.startsWith("\n")
-      ? completion.text.slice(1)
-      : completion.text;
-  });
-  return choices;
+  try {
+    const res = await getOpenApi().createCompletion(
+      {
+        prompt,
+        stop,
+        model: config.model,
+        temperature: config.temperature,
+      },
+      {
+        signal: abortController.signal,
+      }
+    );
+    return res.data.choices.map((choice) => choice.text || "");
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
 }
 
 export async function getChatTitle(chatContext: string): Promise<string> {
-  const url = `${openaiBaseURL}/v1/completions`;
-  console.log("Chat context:\n\n", chatContext);
   const prompt = `Suggest me good title for this chat:\n\n${chatContext}\n\nTitle:`;
 
-  const body = {
+  const res = await getOpenApi().createCompletion({
     prompt,
-    temperature: 0.1,
-    stream: false,
-    max_tokens: 50,
-    model: "text-curie-001",
-    n: 1,
-    stop: "\n",
-  };
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
+    stop: ["\n"],
+    model: "davinci-text-002",
+    temperature: 0.5,
   });
-  const data = await response.json();
-
-  const choices = (data.choices || []).map((completion: { text: string }) => {
-    return completion.text;
-  });
-  console.log("Choices: ", choices);
-  return choices[0];
+  return res.data.choices[0].text || "";
 }
