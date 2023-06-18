@@ -6,7 +6,7 @@ import { CONFIGURATION_KEYS } from "./constant";
 export class ConfigProvider {
   async getOpenApiKey(): Promise<string> {
     const config = vscode.workspace.getConfiguration(CONFIGURATION_KEYS.name);
-    const apiKey = config.get<string>(CONFIGURATION_KEYS.hackergpt.openaiAPIKey);
+    const apiKey = config.get<string>(CONFIGURATION_KEYS.autopilot.openaiAPIKey);
     if (apiKey) {
       return apiKey;
     } else {
@@ -24,7 +24,7 @@ export class ConfigProvider {
   }
 
   async updateChatConfig(key: keyof ChatConfig | CompletionConfig, value: any) {
-    const config = vscode.workspace.getConfiguration("hackergpt");
+    const config = vscode.workspace.getConfiguration("autopilot");
     await config.update(key as string, value, true);
   }
 }

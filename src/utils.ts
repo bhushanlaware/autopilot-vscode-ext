@@ -237,7 +237,7 @@ export function getVscodeControlInstructions() {
 
 export function getCompletionConfig(): CompletionConfig {
   const config = vscode.workspace.getConfiguration(CONFIGURATION_KEYS.name);
-  const completionKeys = CONFIGURATION_KEYS.hackergpt.completion;
+  const completionKeys = CONFIGURATION_KEYS.autopilot.completion;
   const defaults = COMPLETION_DEFAULT_CONFIGURATION;
 
   return {
@@ -250,7 +250,7 @@ export function getCompletionConfig(): CompletionConfig {
 
 export function getChatConfig(): ChatConfig {
   const config = vscode.workspace.getConfiguration(CONFIGURATION_KEYS.name);
-  const chatKeys = CONFIGURATION_KEYS.hackergpt.chat;
+  const chatKeys = CONFIGURATION_KEYS.autopilot.chat;
   const defaults = CHAT_DEFAULT_CONFIGURATION;
 
   return {
@@ -262,7 +262,7 @@ export function getChatConfig(): ChatConfig {
 
 export function getOpenAIKey(): string {
   const config = vscode.workspace.getConfiguration(CONFIGURATION_KEYS.name);
-  const openAiKeys = CONFIGURATION_KEYS.hackergpt.openaiAPIKey;
+  const openAiKeys = CONFIGURATION_KEYS.autopilot.openaiAPIKey;
   return config.get(openAiKeys) ?? "";
 }
 

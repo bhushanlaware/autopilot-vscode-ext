@@ -72,7 +72,7 @@ export class AutoCompleteProvider implements vscode.Disposable {
     switch (state) {
       case "ideal":
         this.statusBarItem.text = "$(hubot)";
-        this.statusBarItem.tooltip = "HackerGPT";
+        this.statusBarItem.tooltip = "Autopilot";
         break;
       case "thinking":
         this.statusBarItem.text = "$(sync~spin)";

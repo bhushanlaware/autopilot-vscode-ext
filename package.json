@@ -1,7 +1,7 @@
 {
-  "name": "hackergpt",
-  "displayName": "hackergpt",
-  "description": "Build on top of powerful GPT-3 API to give you edge in coding.",
+  "name": "autopilot",
+  "displayName": "autopilot",
+  "description": "Build on top of powerful openai API to give you edge over development.",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.70.0"
@@ -12,62 +12,62 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "publisher": "hackerrank",
+  "publisher": "bhushanlaware",
   "browser": "./dist/extension.js",
   "contributes": {
     "menus": {
       "view/title": [
         {
-          "command": "hackergpt.chatHistory",
-          "group": "hackergpt.menu.basic",
-          "when": "view == hackergpt.chat"
+          "command": "autopilot.chatHistory",
+          "group": "autopilot.menu.basic",
+          "when": "view == autopilot.chat"
         }
       ]
     },
     "commands": [
       {
-        "command": "hackergpt.chatHistory",
+        "command": "autopilot.chatHistory",
         "title": "Chat History"
       },
       {
-        "command": "hackergpt.startNew",
+        "command": "autopilot.startNew",
         "title": "Start New Chat"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "hackergpt-chat-view",
-          "title": "HackerGPT",
+          "id": "autopilot-chat-view",
+          "title": "Autopilot",
           "icon": "$(hubot)"
         },
         {
-          "id": "hackergpt-search-view",
+          "id": "autopilot-search-view",
           "title": "Search",
           "icon": "resources/google.svg"
         }
       ]
     },
     "views": {
-      "hackergpt-chat-view": [
+      "autopilot-chat-view": [
         {
           "type": "webview",
-          "id": "hackergpt.chat",
+          "id": "autopilot.chat",
           "name": "AI Chat"
         }
       ],
-      "hackergpt-search-view": [
+      "autopilot-search-view": [
         {
           "type": "webview",
-          "id": "hackergpt.search",
+          "id": "autopilot.search",
           "name": "Search"
         }
       ]
     },
     "configuration": {
-      "title": "HackerGPT",
+      "title": "Autopilot",
       "properties": {
-        "hackergpt.chatModel": {
+        "autopilot.chatModel": {
           "type": "string",
           "name": "Chat Model",
           "enum": [
@@ -77,7 +77,7 @@
           "default": "gpt-4",
           "description": "Choose the GPT model to use for Chat."
         },
-        "hackergpt.chatContext": {
+        "autopilot.chatContext": {
           "type": "string",
           "enum": [
             "None",
@@ -88,14 +88,14 @@
           "default": "All Files",
           "description": "Choose the context for the chat. Please note that more context you give it consume more token."
         },
-        "hackergpt.chatTemperature": {
+        "autopilot.chatTemperature": {
           "type": "number",
           "default": 0.5,
           "minimum": 0,
           "maximum": 1,
           "description": "Set the temperature for the GPT model."
         },
-        "hackergpt.chatRestriction": {
+        "autopilot.chatRestriction": {
           "type": "string",
           "enum": [
             "None",
@@ -104,7 +104,7 @@
           "default": "None",
           "description": "Choose the restriction for the chat."
         },
-        "hackergpt.autoCompletionModel": {
+        "autopilot.autoCompletionModel": {
           "type": "string",
           "enum": [
             "text-davinci-003",
@@ -120,7 +120,7 @@
           "default": "text-davinci-002",
           "description": "Choose the GPT model to use for Chat."
         },
-        "hackergpt.numberOfCodeSuggestions": {
+        "autopilot.numberOfCodeSuggestions": {
           "type": "number",
           "default": 1,
           "enum": [
@@ -131,7 +131,7 @@
             5
           ]
         },
-        "hackergpt.chatId": {
+        "autopilot.chatId": {
           "type": "string",
           "default": "",
           "description": "Current chat ID",
@@ -146,7 +146,7 @@
     "vscode:prepublish": "yarn run package-web",
     "compile-web": "webpack --config extension.webpack.config.js && yarn build-react",
     "watch-web": "webpack --watch --config extension.webpack.config.js",
-    "compile": "gulp compile-extension:hackergpt",
+    "compile": "gulp compile-extension:autopilot",
     "lint": "eslint src --ext ts",
     "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. .",
     "build-react": "webpack build --config ./webpack-react.config.js",

@@ -8,8 +8,8 @@ export const VIEW_RANGE_MAX_LINES = 100;
 export const CHAT_HISTORY_FILE_NAME = "chat_history.json";
 
 export const CONFIGURATION_KEYS = {
-  name: "hackergpt",
-  hackergpt: {
+  name: "autopilot",
+  autopilot: {
     openaiAPIKey: "openaiAPIKey",
     chat: {
       model: "chatModel",

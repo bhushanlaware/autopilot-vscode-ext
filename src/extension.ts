@@ -7,7 +7,7 @@ import { ChatGPTViewProvider } from "./ChatGPTViewProvider";
 export async function activate(context: vscode.ExtensionContext) {
   // const searchViewProvider = new SearchViewProvider(context);
   // const searchViewPanel = vscode.window.registerWebviewViewProvider(
-  //   "hackergpt.search",
+  //   "autopilot.search",
   //   searchViewProvider,
   //   {
   //     webviewOptions: {
@@ -25,7 +25,7 @@ export async function activate(context: vscode.ExtensionContext) {
       const autoCompleteProvider = new AutoCompleteProvider(context);
       const chatGPTWebViewProvider = new ChatGPTViewProvider(context);
 
-      const chatGPTWebViewPanel = vscode.window.registerWebviewViewProvider("hackergpt.chat", chatGPTWebViewProvider, {
+      const chatGPTWebViewPanel = vscode.window.registerWebviewViewProvider("autopilot.chat", chatGPTWebViewProvider, {
         webviewOptions: {
           retainContextWhenHidden: true,
         },

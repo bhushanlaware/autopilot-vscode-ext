@@ -27,11 +27,11 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
 
     this.disposables.push(
       fileChangeListener,
-      vscode.commands.registerCommand("hackergpt.askQuestion", (q) => this.handleAskQuestion(q)),
-      vscode.commands.registerCommand("hackergpt.chatHistory", () =>
+      vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)),
+      vscode.commands.registerCommand("autopilot.chatHistory", () =>
         this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))
       ),
-      vscode.commands.registerCommand("hackergpt.clearAll", () => this.chatHistoryManager.clearHistory())
+      vscode.commands.registerCommand("autopilot.clearAll", () => this.chatHistoryManager.clearHistory())
     );
   }
 
