@@ -34,6 +34,17 @@ function activate(context) {
         //   }
         // );
         // context.subscriptions.push(searchViewPanel);
+        // setTimeout(() => {
+        //   sudoVscode("Create new file user.txt and write 10 users names in it", []);
+        // }, 1000);
+        function getBuiltInCommands() {
+            return __awaiter(this, void 0, void 0, function* () {
+                const allCommands = yield vscode.commands.getCommands();
+                const builtInCommands = allCommands.filter((command) => command.startsWith("workbench.") || command.startsWith("editor."));
+                console.log(builtInCommands);
+            });
+        }
+        getBuiltInCommands();
         const configProvider = new ConfigProvider_1.ConfigProvider();
         configProvider
             .getOpenApiKey()
@@ -17485,7 +17496,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getChatTitle = exports.getCodeCompletions = exports.askQuestionWithPartialAnswers = exports.cancelGPTRequest = void 0;
+exports.sudoVscode = exports.getChatTitle = exports.getCodeCompletions = exports.askQuestionWithPartialAnswers = exports.cancelGPTRequest = void 0;
 const vscode = __webpack_require__(1);
 // @ts-ignore
 const encoder_1 = __webpack_require__(7);
@@ -17508,11 +17519,20 @@ function askQuestionWithPartialAnswers(question, history, files, onPartialAnswer
             role: openai_1.ChatCompletionRequestMessageRoleEnum.System,
             content: systemInstruction,
         };
+        const baseProjectPath = (0, utils_1.getCurrentWorkSpaceFolderPath)();
+        const systemMessage2 = {
+            role: openai_1.ChatCompletionRequestMessageRoleEnum.System,
+            content: [
+                "You are also vscode sudo bot, Help user to get things done with his query.",
+                `Consider this root path of project while giving the file paths and always give full filepaths.`,
+                `Project root path: ${baseProjectPath}`,
+            ].join("\n"),
+        };
         const userMessage = {
             role: openai_1.ChatCompletionRequestMessageRoleEnum.User,
             content: question,
         };
-        const messages = [systemMessage, ...history, userMessage];
+        const messages = [systemMessage, systemMessage2, ...history, userMessage];
         const maxTokens = utils_1.modelMaxTokens[model];
         const totalTokens = messages.reduce((acc, message) => {
             return acc + (0, encoder_1.encode)(message.content).length;
@@ -17532,17 +17552,38 @@ function askQuestionWithPartialAnswers(question, history, files, onPartialAnswer
             messages,
             temperature,
             stream: true,
-            model,
+            functions: (0, utils_1.getVscodeControlFunctionsDescriptions)(),
+            model: "gpt-3.5-turbo-0613",
         };
+        let functionName = "";
         function onMessage(data) {
             var _a2;
             if (data === "[DONE]") {
+                if (functionName) {
+                    const functionArguments = JSON.parse(fullResponse);
+                    if (functionName && functionArguments) {
+                        const availableFunctions = (0, utils_1.getVscodeControlFunctionDecelerations)();
+                        const requiredFunction = availableFunctions[functionName];
+                        requiredFunction === null || requiredFunction === void 0 ? void 0 : requiredFunction(functionArguments);
+                        onPartialAnswer("\n DONE!");
+                        return resolve("Executed" + functionName);
+                    }
+                }
                 resolve(fullResponse);
             }
             try {
                 const response = JSON.parse(data);
                 if ((_a2 = response == null ? void 0 : response.choices) == null ? void 0 : _a2.length) {
                     const delta = response.choices[0].delta;
+                    // Execute function
+                    if ("function_call" in delta) {
+                        if (!functionName) {
+                            functionName = delta.function_call.name;
+                            onPartialAnswer("Doing my best to execute " + functionName);
+                        }
+                        fullResponse += delta.function_call.arguments;
+                        return;
+                    }
                     if (delta == null ? void 0 : delta.content) {
                         const responseText = delta.content;
                         if (responseText) {
@@ -17610,6 +17651,47 @@ function getChatTitle(chatContext) {
     });
 }
 exports.getChatTitle = getChatTitle;
+function sudoVscode(userCommand, history) {
+    var _a, _b;
+    return __awaiter(this, void 0, void 0, function* () {
+        const baseProjectPath = (0, utils_1.getCurrentWorkSpaceFolderPath)();
+        const systemMessage = {
+            role: openai_1.ChatCompletionRequestMessageRoleEnum.System,
+            content: [
+                "You are vscode sudo bot, Help user to get things done with his query.",
+                `Consider this root path of project while giving the file paths and always give full filepaths.`,
+                `Project root path: ${baseProjectPath}`,
+            ].join("\n"),
+        };
+        const userMessage = {
+            role: openai_1.ChatCompletionRequestMessageRoleEnum.User,
+            content: userCommand,
+        };
+        const messages = [systemMessage, ...history, userMessage];
+        const res = yield (0, utils_1.getOpenApi)().createChatCompletion({
+            functions: (0, utils_1.getVscodeControlFunctionsDescriptions)(),
+            model: "gpt-3.5-turbo-0613",
+            messages,
+        });
+        const resultMessage = res.data.choices[0].message;
+        if (!resultMessage) {
+            return;
+        }
+        if ("function_call" in resultMessage) {
+            const functionName = (_a = resultMessage.function_call) === null || _a === void 0 ? void 0 : _a.name;
+            const functionArgs = (_b = resultMessage.function_call) === null || _b === void 0 ? void 0 : _b.arguments;
+            if (functionName && functionArgs) {
+                console.log(functionName, functionArgs);
+                const args = JSON.parse(functionArgs);
+                console.log(args);
+                const availableFunctions = (0, utils_1.getVscodeControlFunctionDecelerations)();
+                const requiredFunction = availableFunctions[functionName];
+                requiredFunction === null || requiredFunction === void 0 ? void 0 : requiredFunction(args);
+            }
+        }
+    });
+}
+exports.sudoVscode = sudoVscode;
 
 
 /***/ }),
@@ -22479,7 +22561,7 @@ var __asyncGenerator = (this && this.__asyncGenerator) || function (thisArg, _ar
     function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getOpenApi = exports.getOpenAIKey = exports.getChatConfig = exports.getCompletionConfig = exports.getVscodeControlInstructions = exports.createFileIfNotExists = exports.checkIfFileExists = exports.uuid = exports.fetchSSE = exports.getInstruction = exports.getOpenedFiles = exports.getSelectedCode = exports.getFilesPromptMessage = exports.getWorkspaceBasePath = exports.openaiBaseURL = exports.modelMaxTokens = exports.readFiles = void 0;
+exports.getVscodeControlFunctionDecelerations = exports.getVscodeControlFunctionsDescriptions = exports.runVscodeCommand = exports.runTerminalCommand = exports.deleteText = exports.replaceText = exports.deleteFile = exports.openFile = exports.insertText = exports.getCurrentWorkSpaceFolderPath = exports.createFile = exports.getOpenApi = exports.getOpenAIKey = exports.getChatConfig = exports.getCompletionConfig = exports.getVscodeControlInstructions = exports.createFileIfNotExists = exports.checkIfFileExists = exports.uuid = exports.fetchSSE = exports.getInstruction = exports.getOpenedFiles = exports.getSelectedCode = exports.getFilesPromptMessage = exports.getWorkspaceBasePath = exports.openaiBaseURL = exports.modelMaxTokens = exports.readFiles = void 0;
 const eventsource_parser_1 = __webpack_require__(49);
 const vscode = __webpack_require__(1);
 const constant_1 = __webpack_require__(3);
@@ -22747,6 +22829,306 @@ function getOpenApi() {
     return new openai_1.OpenAIApi(configuration);
 }
 exports.getOpenApi = getOpenApi;
+function createFile({ fileName, fileContent }) {
+    const fileUri = vscode.Uri.parse(fileName);
+    createFileIfNotExists(fileUri, fileContent);
+}
+exports.createFile = createFile;
+function getCurrentWorkSpaceFolderPath() {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+        throw new Error("No workspace folder found");
+    }
+    return workspaceFolders[0].uri.fsPath;
+}
+exports.getCurrentWorkSpaceFolderPath = getCurrentWorkSpaceFolderPath;
+function insertText({ filepath, line, col, text }) {
+    const document = vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath.endsWith(filepath));
+    const fileUri = document === null || document === void 0 ? void 0 : document.uri;
+    if (fileUri) {
+        vscode.workspace.openTextDocument(fileUri).then((document) => {
+            const edit = new vscode.WorkspaceEdit();
+            edit.insert(fileUri, new vscode.Position(line, col), text);
+            return vscode.workspace.applyEdit(edit);
+        });
+    }
+}
+exports.insertText = insertText;
+function openFile({ filepath }) {
+    const fileUri = vscode.Uri.parse(filepath);
+    vscode.workspace.openTextDocument(fileUri).then((document) => {
+        vscode.window.showTextDocument(document);
+    });
+}
+exports.openFile = openFile;
+function deleteFile({ filepath }) {
+    const fileUri = vscode.Uri.parse(filepath);
+    vscode.workspace.openTextDocument(fileUri).then((document) => {
+        vscode.workspace.fs.delete(fileUri);
+    });
+}
+exports.deleteFile = deleteFile;
+function replaceText({ filepath, line, col, text }) {
+    const fileUri = vscode.Uri.parse(filepath);
+    vscode.workspace.openTextDocument(fileUri).then((document) => {
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(fileUri, new vscode.Range(line, col, line, col + text.length), text);
+        return vscode.workspace.applyEdit(edit);
+    });
+}
+exports.replaceText = replaceText;
+function deleteText({ filepath, line, col, text }) {
+    const fileUri = vscode.Uri.parse(filepath);
+    vscode.workspace.openTextDocument(fileUri).then((document) => {
+        const edit = new vscode.WorkspaceEdit();
+        edit.delete(fileUri, new vscode.Range(line, col, line, col + text.length));
+        return vscode.workspace.applyEdit(edit);
+    });
+}
+exports.deleteText = deleteText;
+function runTerminalCommand({ name, path, command, env, }) {
+    const terminal = vscode.window.createTerminal({
+        name: name,
+        cwd: vscode.Uri.parse(path),
+        env,
+    });
+    terminal.show();
+    terminal.sendText(command);
+}
+exports.runTerminalCommand = runTerminalCommand;
+function runVscodeCommand(_a) {
+    var { command } = _a, args = __rest(_a, ["command"]);
+    vscode.commands.executeCommand(command, args);
+}
+exports.runVscodeCommand = runVscodeCommand;
+// export function getVscodeControlFunctionsDescriptions() {
+//   return [
+//     {
+//       name: "runTerminal",
+//       description: "Create a new terminal and run a command",
+//       parameters: {
+//         type: "object",
+//         properties: {
+//           name: {
+//             type: "string",
+//             description: "The name of the terminal",
+//           },
+//           path: {
+//             type: "string",
+//             description: "The path where the command should be run",
+//           },
+//           command: {
+//             type: "string",
+//             description: "The command to be run in the terminal",
+//           },
+//           env: {
+//             type: "object",
+//             properties: {
+//               "${key}": {
+//                 type: "string",
+//                 description: "The environment variable to be set",
+//               },
+//             },
+//           },
+//         },
+//         required: ["name", "path", "command"],
+//       },
+//     },
+//     {
+//       name: "runVscodeCommand",
+//       description: "Execute a Visual Studio Code command to control editor and workbench",
+//       parameters: {
+//         type: "object",
+//         properties: {
+//           command: {
+//             type: "string",
+//             description: "The command to be executed",
+//           },
+//           args: {
+//             type: "object",
+//             properties: {
+//               "${key}": {
+//                 type: "string",
+//                 description: "The argument value",
+//               },
+//             },
+//           },
+//         },
+//         required: ["command"],
+//       },
+//     },
+//   ];
+// }
+function getVscodeControlFunctionsDescriptions() {
+    return [
+        {
+            name: "createFile",
+            description: "Create a file with the given file name and file content",
+            parameters: {
+                type: "object",
+                properties: {
+                    fileName: {
+                        type: "string",
+                        description: "The name of the file to create",
+                    },
+                    fileContent: {
+                        type: "string",
+                        description: "The content to be written in the file",
+                    },
+                },
+                required: ["fileName", "fileContent"],
+            },
+        },
+        {
+            name: "insertText",
+            description: "Insert text at a specific line and column in a file",
+            parameters: {
+                type: "object",
+                properties: {
+                    filepath: {
+                        type: "string",
+                        description: "The path of the file where the text will be inserted",
+                    },
+                    line: {
+                        type: "number",
+                        description: "The line number where the text will be inserted",
+                    },
+                    col: {
+                        type: "number",
+                        description: "The column number where the text will be inserted",
+                    },
+                    text: {
+                        type: "string",
+                        description: "The text to be inserted",
+                    },
+                },
+                required: ["filepath", "line", "col", "text"],
+            },
+        },
+        {
+            name: "openFile",
+            description: "Open a file in the Visual Studio Code editor",
+            parameters: {
+                type: "object",
+                properties: {
+                    filepath: {
+                        type: "string",
+                        description: "The path of the file to open",
+                    },
+                },
+                required: ["filepath"],
+            },
+        },
+        {
+            name: "deleteFile",
+            description: "Delete a file from the file system",
+            parameters: {
+                type: "object",
+                properties: {
+                    filepath: {
+                        type: "string",
+                        description: "The path of the file to delete",
+                    },
+                },
+                required: ["filepath"],
+            },
+        },
+        {
+            name: "replaceText",
+            description: "Replace text at a specific line and column in a file",
+            parameters: {
+                type: "object",
+                properties: {
+                    filepath: {
+                        type: "string",
+                        description: "The path of the file where the text will be replaced",
+                    },
+                    line: {
+                        type: "number",
+                        description: "The line number where the text will be replaced",
+                    },
+                    col: {
+                        type: "number",
+                        description: "The column number where the text will be replaced",
+                    },
+                    text: {
+                        type: "string",
+                        description: "The new text to be inserted",
+                    },
+                },
+                required: ["filepath", "line", "col", "text"],
+            },
+        },
+        {
+            name: "deleteText",
+            description: "Delete text at a specific line and column in a file",
+            parameters: {
+                type: "object",
+                properties: {
+                    filepath: {
+                        type: "string",
+                        description: "The path of the file where the text will be deleted",
+                    },
+                    line: {
+                        type: "number",
+                        description: "The line number where the text will be deleted",
+                    },
+                    col: {
+                        type: "number",
+                        description: "The column number where the text will be deleted",
+                    },
+                    text: {
+                        type: "string",
+                        description: "The text to be deleted",
+                    },
+                },
+                required: ["filepath", "line", "col", "text"],
+            },
+        },
+        // {
+        //   name: "runCommand",
+        //   description: "Run a command in the integrated terminal",
+        //   parameters: {
+        //     type: "object",
+        //     properties: {
+        //       name: {
+        //         type: "string",
+        //         description: "The name of the terminal",
+        //       },
+        //       path: {
+        //         type: "string",
+        //         description: "The working directory of the terminal",
+        //       },
+        //       command: {
+        //         type: "string",
+        //         description: "The command to be executed",
+        //       },
+        //       env: {
+        //         type: "object",
+        //         description: "Optional. Environment variables to be set for the terminal process",
+        //         additionalProperties: {
+        //           type: "string",
+        //         },
+        //       },
+        //     },
+        //     required: ["name", "path", "command"],
+        //   },
+        // },
+    ];
+}
+exports.getVscodeControlFunctionsDescriptions = getVscodeControlFunctionsDescriptions;
+function getVscodeControlFunctionDecelerations() {
+    return {
+        createFile,
+        insertText,
+        openFile,
+        deleteFile,
+        replaceText,
+        deleteText,
+        runCommand: runTerminalCommand,
+    };
+}
+exports.getVscodeControlFunctionDecelerations = getVscodeControlFunctionDecelerations;
 
 
 /***/ }),
@@ -22961,9 +23343,6 @@ class ChatGPTViewProvider {
                 case "clear_chat":
                     this.chatHistoryManager.startNewChat();
                     break;
-                case "insert_code":
-                    this.insertText("/src/App.js", 10, 1, data.code);
-                    break;
             }
         });
         const waitForHistoryMangerInit = this.chatHistoryManager.waitForInit();
@@ -23022,55 +23401,6 @@ class ChatGPTViewProvider {
 			<script nonce='${nonce}' src='${scriptUri}'></script>
 		</html>
 	`;
-    }
-    createFile(fileName, fileContent) {
-        const fileUri = vscode.Uri.parse(fileName);
-        (0, utils_1.createFileIfNotExists)(fileUri, fileContent);
-    }
-    insertTextHelper(code) {
-        const chat = this.chatHistoryManager.getMessages().find((chat) => chat.content.includes(code));
-        if (!chat) {
-            return;
-        }
-    }
-    insertText(filepath, line, col, text) {
-        const document = vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath.endsWith(filepath));
-        const fileUri = document === null || document === void 0 ? void 0 : document.uri;
-        if (fileUri) {
-            vscode.workspace.openTextDocument(fileUri).then((document) => {
-                const edit = new vscode.WorkspaceEdit();
-                edit.insert(fileUri, new vscode.Position(line, col), text);
-                return vscode.workspace.applyEdit(edit);
-            });
-        }
-    }
-    openFile(filepath) {
-        const fileUri = vscode.Uri.parse(filepath);
-        vscode.workspace.openTextDocument(fileUri).then((document) => {
-            vscode.window.showTextDocument(document);
-        });
-    }
-    deleteFile(filepath) {
-        const fileUri = vscode.Uri.parse(filepath);
-        vscode.workspace.openTextDocument(fileUri).then((document) => {
-            vscode.workspace.fs.delete(fileUri);
-        });
-    }
-    replaceText(filepath, line, col, text) {
-        const fileUri = vscode.Uri.parse(filepath);
-        vscode.workspace.openTextDocument(fileUri).then((document) => {
-            const edit = new vscode.WorkspaceEdit();
-            edit.replace(fileUri, new vscode.Range(line, col, line, col + text.length), text);
-            return vscode.workspace.applyEdit(edit);
-        });
-    }
-    deleteText(filepath, line, col, text) {
-        const fileUri = vscode.Uri.parse(filepath);
-        vscode.workspace.openTextDocument(fileUri).then((document) => {
-            const edit = new vscode.WorkspaceEdit();
-            edit.delete(fileUri, new vscode.Range(line, col, line, col + text.length));
-            return vscode.workspace.applyEdit(edit);
-        });
     }
     dispose() {
         this.disposables.forEach((d) => d.dispose());
