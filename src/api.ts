@@ -9,9 +9,12 @@ import {
   getChatConfig,
   getCompletionConfig,
   getFiles,
+  getCurrentWorkSpaceFolderPath,
   getInstruction,
   getOpenAIKey,
   getOpenApi,
+  getVscodeControlFunctionDecelerations,
+  getVscodeControlFunctionsDescriptions,
   modelMaxTokens,
   openaiBaseURL,
 } from "./utils";
@@ -38,13 +41,24 @@ export function askQuestionWithPartialAnswers(question: string, history: Message
       content: systemInstruction,
     };
 
+    const baseProjectPath = getCurrentWorkSpaceFolderPath();
+
+    const systemMessage2 = {
+      role: ChatCompletionRequestMessageRoleEnum.System,
+      content: [
+        "You are also vscode sudo bot, Help user to get things done with his query.",
+        `Consider this root path of project while giving the file paths and always give full filepaths.`,
+        `Project root path: ${baseProjectPath}`,
+      ].join("\n"),
+    };
+
     const userMessage = {
       role: ChatCompletionRequestMessageRoleEnum.User,
       content: question,
     };
 
     const lastNHistory = history.slice(history.length - MSG_WINDOW_SIZE);
-    const messages = [systemMessage, ...lastNHistory, userMessage];
+    const messages = [systemMessage, systemMessage2, ...lastNHistory, userMessage];
     const maxTokens = modelMaxTokens[model];
 
     const totalTokens = messages.reduce((acc, message) => {
@@ -69,18 +83,45 @@ export function askQuestionWithPartialAnswers(question: string, history: Message
       messages,
       temperature,
       stream: true,
-      model,
+      functions: getVscodeControlFunctionsDescriptions(),
+      model: "gpt-3.5-turbo-0613",
     };
+
+    let functionName = "";
 
     function onMessage(data: string) {
       var _a2;
       if (data === "[DONE]") {
+        if (functionName) {
+          const functionArguments = JSON.parse(fullResponse);
+
+          if (functionName && functionArguments) {
+            const availableFunctions = getVscodeControlFunctionDecelerations();
+            const requiredFunction = availableFunctions[functionName as keyof typeof availableFunctions];
+            requiredFunction?.(functionArguments);
+            onPartialAnswer("\n DONE!");
+            return resolve("Executed" + functionName);
+          }
+        }
         resolve(fullResponse);
       }
       try {
         const response = JSON.parse(data);
+
         if ((_a2 = response == null ? void 0 : response.choices) == null ? void 0 : _a2.length) {
           const delta = response.choices[0].delta;
+
+          // Execute function
+          if ("function_call" in delta) {
+            if (!functionName) {
+              functionName = delta.function_call.name;
+              onPartialAnswer("Doing my best to execute " + functionName);
+            }
+
+            fullResponse += delta.function_call.arguments;
+            return;
+          }
+
           if (delta == null ? void 0 : delta.content) {
             const responseText = delta.content;
             if (responseText) {
@@ -157,3 +198,42 @@ export const createEmbedding = async (...contents: string[]) => {
   });
   return response.data.data[0].embedding;
 };
+export async function sudoVscode(userCommand: string, history: Chat[]) {
+  const baseProjectPath = getCurrentWorkSpaceFolderPath();
+  const systemMessage = {
+    role: ChatCompletionRequestMessageRoleEnum.System,
+    content: [
+      "You are vscode sudo bot, Help user to get things done with his query.",
+      `Consider this root path of project while giving the file paths and always give full filepaths.`,
+      `Project root path: ${baseProjectPath}`,
+    ].join("\n"),
+  };
+  const userMessage = {
+    role: ChatCompletionRequestMessageRoleEnum.User,
+    content: userCommand,
+  };
+  const messages = [systemMessage, ...history, userMessage];
+  const res = await getOpenApi().createChatCompletion({
+    functions: getVscodeControlFunctionsDescriptions(),
+    model: "gpt-3.5-turbo-0613",
+    messages,
+  });
+
+  const resultMessage = res.data.choices[0].message;
+  if (!resultMessage) {
+    return;
+  }
+
+  if ("function_call" in resultMessage) {
+    const functionName = resultMessage.function_call?.name;
+    const functionArgs = resultMessage.function_call?.arguments;
+    if (functionName && functionArgs) {
+      console.log(functionName, functionArgs);
+      const args = JSON.parse(functionArgs);
+      console.log(args);
+      const availableFunctions = getVscodeControlFunctionDecelerations();
+      const requiredFunction = availableFunctions[functionName as keyof typeof availableFunctions];
+      requiredFunction?.(args);
+    }
+  }
+}

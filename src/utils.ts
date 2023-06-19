@@ -283,4 +283,314 @@ export function readFileInChunks(fileContent: string, chunkSize = 2000) {
     chunks.push(fileContent.slice(i, i + chunkSize));
   }
   return chunks;
+export function createFile({ fileName, fileContent }: { fileName: string; fileContent: string }) {
+  const fileUri = vscode.Uri.parse(fileName);
+  createFileIfNotExists(fileUri, fileContent);
+}
+
+export function getCurrentWorkSpaceFolderPath(): string {
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders) {
+    throw new Error("No workspace folder found");
+  }
+  return workspaceFolders[0].uri.fsPath;
+}
+
+export function insertText({ filepath, line, col, text }: { filepath: string; line: number; col: number; text: string }) {
+  const document = vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath.endsWith(filepath));
+
+  const fileUri = document?.uri;
+  if (fileUri) {
+    vscode.workspace.openTextDocument(fileUri).then((document) => {
+      const edit = new vscode.WorkspaceEdit();
+      edit.insert(fileUri, new vscode.Position(line, col), text);
+      return vscode.workspace.applyEdit(edit);
+    });
+  }
+}
+
+export function openFile({ filepath }: { filepath: string }) {
+  const fileUri = vscode.Uri.parse(filepath);
+  vscode.workspace.openTextDocument(fileUri).then((document) => {
+    vscode.window.showTextDocument(document);
+  });
+}
+
+export function deleteFile({ filepath }: { filepath: string }) {
+  const fileUri = vscode.Uri.parse(filepath);
+  vscode.workspace.openTextDocument(fileUri).then((document) => {
+    vscode.workspace.fs.delete(fileUri);
+  });
+}
+
+export function replaceText({ filepath, line, col, text }: { filepath: string; line: number; col: number; text: string }) {
+  const fileUri = vscode.Uri.parse(filepath);
+  vscode.workspace.openTextDocument(fileUri).then((document) => {
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(fileUri, new vscode.Range(line, col, line, col + text.length), text);
+    return vscode.workspace.applyEdit(edit);
+  });
+}
+
+export function deleteText({ filepath, line, col, text }: { filepath: string; line: number; col: number; text: string }) {
+  const fileUri = vscode.Uri.parse(filepath);
+  vscode.workspace.openTextDocument(fileUri).then((document) => {
+    const edit = new vscode.WorkspaceEdit();
+    edit.delete(fileUri, new vscode.Range(line, col, line, col + text.length));
+    return vscode.workspace.applyEdit(edit);
+  });
+}
+
+export function runTerminalCommand({
+  name,
+  path,
+  command,
+  env,
+}: {
+  name: string;
+  path: string;
+  command: string;
+  env?: { [key: string]: string };
+}) {
+  const terminal = vscode.window.createTerminal({
+    name: name,
+    cwd: vscode.Uri.parse(path),
+    env,
+  });
+  terminal.show();
+  terminal.sendText(command);
+}
+
+export function runVscodeCommand({ command, ...args }: { command: string }) {
+  vscode.commands.executeCommand(command, args);
+}
+
+// export function getVscodeControlFunctionsDescriptions() {
+//   return [
+//     {
+//       name: "runTerminal",
+//       description: "Create a new terminal and run a command",
+//       parameters: {
+//         type: "object",
+//         properties: {
+//           name: {
+//             type: "string",
+//             description: "The name of the terminal",
+//           },
+//           path: {
+//             type: "string",
+//             description: "The path where the command should be run",
+//           },
+//           command: {
+//             type: "string",
+//             description: "The command to be run in the terminal",
+//           },
+//           env: {
+//             type: "object",
+//             properties: {
+//               "${key}": {
+//                 type: "string",
+//                 description: "The environment variable to be set",
+//               },
+//             },
+//           },
+//         },
+//         required: ["name", "path", "command"],
+//       },
+//     },
+//     {
+//       name: "runVscodeCommand",
+//       description: "Execute a Visual Studio Code command to control editor and workbench",
+//       parameters: {
+//         type: "object",
+//         properties: {
+//           command: {
+//             type: "string",
+//             description: "The command to be executed",
+//           },
+//           args: {
+//             type: "object",
+//             properties: {
+//               "${key}": {
+//                 type: "string",
+//                 description: "The argument value",
+//               },
+//             },
+//           },
+//         },
+//         required: ["command"],
+//       },
+//     },
+//   ];
+// }
+
+
+export function getVscodeControlFunctionsDescriptions() {
+  return [
+    {
+      name: "createFile",
+      description: "Create a file with the given file name and file content",
+      parameters: {
+        type: "object",
+        properties: {
+          fileName: {
+            type: "string",
+            description: "The name of the file to create",
+          },
+          fileContent: {
+            type: "string",
+            description: "The content to be written in the file",
+          },
+        },
+        required: ["fileName", "fileContent"],
+      },
+    },
+    {
+      name: "insertText",
+      description: "Insert text at a specific line and column in a file",
+      parameters: {
+        type: "object",
+        properties: {
+          filepath: {
+            type: "string",
+            description: "The path of the file where the text will be inserted",
+          },
+          line: {
+            type: "number",
+            description: "The line number where the text will be inserted",
+          },
+          col: {
+            type: "number",
+            description: "The column number where the text will be inserted",
+          },
+          text: {
+            type: "string",
+            description: "The text to be inserted",
+          },
+        },
+        required: ["filepath", "line", "col", "text"],
+      },
+    },
+    {
+      name: "openFile",
+      description: "Open a file in the Visual Studio Code editor",
+      parameters: {
+        type: "object",
+        properties: {
+          filepath: {
+            type: "string",
+            description: "The path of the file to open",
+          },
+        },
+        required: ["filepath"],
+      },
+    },
+    {
+      name: "deleteFile",
+      description: "Delete a file from the file system",
+      parameters: {
+        type: "object",
+        properties: {
+          filepath: {
+            type: "string",
+            description: "The path of the file to delete",
+          },
+        },
+        required: ["filepath"],
+      },
+    },
+    {
+      name: "replaceText",
+      description: "Replace text at a specific line and column in a file",
+      parameters: {
+        type: "object",
+        properties: {
+          filepath: {
+            type: "string",
+            description: "The path of the file where the text will be replaced",
+          },
+          line: {
+            type: "number",
+            description: "The line number where the text will be replaced",
+          },
+          col: {
+            type: "number",
+            description: "The column number where the text will be replaced",
+          },
+          text: {
+            type: "string",
+            description: "The new text to be inserted",
+          },
+        },
+        required: ["filepath", "line", "col", "text"],
+      },
+    },
+    {
+      name: "deleteText",
+      description: "Delete text at a specific line and column in a file",
+      parameters: {
+        type: "object",
+        properties: {
+          filepath: {
+            type: "string",
+            description: "The path of the file where the text will be deleted",
+          },
+          line: {
+            type: "number",
+            description: "The line number where the text will be deleted",
+          },
+          col: {
+            type: "number",
+            description: "The column number where the text will be deleted",
+          },
+          text: {
+            type: "string",
+            description: "The text to be deleted",
+          },
+        },
+        required: ["filepath", "line", "col", "text"],
+      },
+    },
+    // {
+    //   name: "runCommand",
+    //   description: "Run a command in the integrated terminal",
+    //   parameters: {
+    //     type: "object",
+    //     properties: {
+    //       name: {
+    //         type: "string",
+    //         description: "The name of the terminal",
+    //       },
+    //       path: {
+    //         type: "string",
+    //         description: "The working directory of the terminal",
+    //       },
+    //       command: {
+    //         type: "string",
+    //         description: "The command to be executed",
+    //       },
+    //       env: {
+    //         type: "object",
+    //         description: "Optional. Environment variables to be set for the terminal process",
+    //         additionalProperties: {
+    //           type: "string",
+    //         },
+    //       },
+    //     },
+    //     required: ["name", "path", "command"],
+    //   },
+    // },
+  ];
+}
+
+export function getVscodeControlFunctionDecelerations() {
+  return {
+    createFile,
+    insertText,
+    openFile,
+    deleteFile,
+    replaceText,
+    deleteText,
+    runCommand: runTerminalCommand,
+  };
 }

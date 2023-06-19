@@ -9,7 +9,7 @@ export const CHAT_HISTORY_FILE_NAME = "chat_history.json";
 export const TOP_INDEX = 5;
 export const CHUNK_SIZE = 2500;
 export const EMBEDDING_DEBOUNCE_TIMER = 5000;
-export const MSG_WINDOW_SIZE = 5;
+export const MSG_WINDOW_SIZE = 10;
 export const IS_ALWAYS_COMPLETIONS_ONE_LINE = true;
 export const CONFIGURATION_KEYS = {
   name: "autopilot",
