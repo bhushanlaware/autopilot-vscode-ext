@@ -21,13 +21,18 @@
           "command": "autopilot.chatHistory",
           "group": "autopilot.menu.basic",
           "when": "view == autopilot.chat"
+        },
+        {
+          "command": "autopilot.clearHistory",
+          "group": "autopilot.menu.basic",
+          "when": "view == autopilot.chat"
         }
       ]
     },
     "commands": [
       {
         "command": "autopilot.chatHistory",
-        "title": "Chat History"
+        "title": "Switch Chat"
       },
       {
         "command": "autopilot.startNew",
@@ -36,6 +41,10 @@
       {
         "command": "autopilot.reset",
         "title": "Reset Autopilot"
+      },
+      {
+        "command": "autopilot.clearHistory",
+        "title": "Delete All Chats"
       }
     ],
     "viewsContainers": {
@@ -126,6 +135,11 @@
           "type": "string",
           "default": "",
           "description": "Current chat id"
+        },
+        "autopilot.enableFileIndexing": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Sementic search for getting better context our project, Please keep in mind this might increase billing."
         }
       }
     }

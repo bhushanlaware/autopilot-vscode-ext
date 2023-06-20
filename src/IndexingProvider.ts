@@ -26,6 +26,10 @@ export class IndexingProvider implements vscode.Disposable {
     this.disposables.push(fileChangeListener, getTopRelativeFileNamesCommands);
   }
 
+  get isEnabled(): boolean {
+    return vscode.workspace.getConfiguration("autopilot").get("enableFileIndexing") as boolean;
+  }
+
   private updateIndexing() {
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
     statusBar.text = "$(search) indexing";
@@ -41,6 +45,10 @@ export class IndexingProvider implements vscode.Disposable {
   }
 
   private createIndexing() {
+    const isFileIndexingEnabled = vscode.workspace.getConfiguration("autopilot").get("enableFileIndexing");
+    if (!isFileIndexingEnabled) {
+      return;
+    }
     console.log("started indexing");
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
     statusBar.text = "$(search) indexing";
@@ -70,6 +78,9 @@ export class IndexingProvider implements vscode.Disposable {
   }
 
   private async createEmbeddings(files: Files, isUpdate = false) {
+    if (!this.isEnabled) {
+      return;
+    }
     let embeddings = this.getEmbeddings();
     await Promise.all(
       Object.entries(files).map(async ([filename, content]) => {
@@ -118,7 +129,10 @@ export class IndexingProvider implements vscode.Disposable {
     return topRelativeFileNames;
   }
 
-  private async getContext(query: string) {
+  private async getContext(query: string): Promise<Files> {
+    if (!this.isEnabled) {
+      return {};
+    }
     const relativeFileNamesWithChunks = await this.getTopRelativeFileNames(query);
 
     const fileNames = relativeFileNamesWithChunks.map((name) => name.split("$")[0]);

@@ -17607,15 +17607,17 @@ function getCodeCompletions(prompt, stop, cancellationToken) {
 }
 exports.getCodeCompletions = getCodeCompletions;
 function getChatTitle(chatContext) {
+    var _a;
     return __awaiter(this, void 0, void 0, function* () {
-        const prompt = `Suggest me good title for this chat:\n\n${chatContext}\n\nTitle:`;
+        const prompt = `Suggest me good title for this CHAT::"""${chatContext}"""\n TITLE::`;
         const res = yield (0, utils_1.getOpenApi)().createCompletion({
             prompt,
-            stop: ["\n"],
-            model: "davinci-text-002",
+            model: "text-davinci-002",
             temperature: 0.5,
+            n: 1,
+            top_p: 1,
         });
-        return res.data.choices[0].text || "";
+        return ((_a = res.data.choices[0].text) === null || _a === void 0 ? void 0 : _a.trim()) || "";
     });
 }
 exports.getChatTitle = getChatTitle;
@@ -22936,7 +22938,10 @@ class ChatGPTViewProvider {
         this.files = {};
         this.disposables = [];
         this.chatHistoryManager = new ChatHistoryManager_1.default(_context);
-        this.disposables.push(vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)), vscode.commands.registerCommand("autopilot.chatHistory", () => this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))), vscode.commands.registerCommand("autopilot.clearAll", () => this.chatHistoryManager.clearHistory()));
+        this.disposables.push(vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)), vscode.commands.registerCommand("autopilot.chatHistory", () => this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))), vscode.commands.registerCommand("autopilot.clearHistory", () => {
+            this.chatHistoryManager.clearHistory();
+            this.handleChatChange({ chatId: "", title: "", history: [] });
+        }));
     }
     handleChatChange(chatHistory) {
         if (this.webviewView) {
@@ -23169,7 +23174,9 @@ class ChatHistoryManager {
         // check if current title is 'New Chat' then update it using GPT
         if (this.getHistory(this.getChatId).title === "New Chat") {
             console.log("Updating title using GPT");
-            this.updateTitleUsingGPT(this.getChatId);
+            this.updateTitleUsingGPT(this.getChatId).then((title) => {
+                console.info(`Updated title to ${title}`);
+            });
         }
     }
     getMessages() {
@@ -23205,8 +23212,10 @@ class ChatHistoryManager {
             const answer = history.history[history.history.length - 2].content;
             const context = `USER:${question}\nAI:${answer}`;
             const title = yield (0, api_1.getChatTitle)(context);
+            console.log("new title", title);
             this._historyMap[chatId].title = title;
             this.saveDebounced();
+            return title;
         });
     }
     getHistoryList() {
@@ -23274,6 +23283,9 @@ class IndexingProvider {
         this.createIndexing();
         this.disposables.push(fileChangeListener, getTopRelativeFileNamesCommands);
     }
+    get isEnabled() {
+        return vscode.workspace.getConfiguration("autopilot").get("enableFileIndexing");
+    }
     updateIndexing() {
         const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
         statusBar.text = "$(search) indexing";
@@ -23288,6 +23300,10 @@ class IndexingProvider {
         });
     }
     createIndexing() {
+        const isFileIndexingEnabled = vscode.workspace.getConfiguration("autopilot").get("enableFileIndexing");
+        if (!isFileIndexingEnabled) {
+            return;
+        }
         console.log("started indexing");
         const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
         statusBar.text = "$(search) indexing";
@@ -23317,6 +23333,9 @@ class IndexingProvider {
     }
     createEmbeddings(files, isUpdate = false) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (!this.isEnabled) {
+                return;
+            }
             let embeddings = this.getEmbeddings();
             yield Promise.all(Object.entries(files).map(([filename, content]) => __awaiter(this, void 0, void 0, function* () {
                 if (isUpdate || !embeddings[filename]) {
@@ -23358,6 +23377,9 @@ class IndexingProvider {
     }
     getContext(query) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (!this.isEnabled) {
+                return {};
+            }
             const relativeFileNamesWithChunks = yield this.getTopRelativeFileNames(query);
             const fileNames = relativeFileNamesWithChunks.map((name) => name.split("$")[0]);
             const relativeFiles = yield (0, utils_1.getFiles)(fileNames);

@@ -99,7 +99,9 @@ export default class ChatHistoryManager {
     // check if current title is 'New Chat' then update it using GPT
     if (this.getHistory(this.getChatId).title === "New Chat") {
       console.log("Updating title using GPT");
-      this.updateTitleUsingGPT(this.getChatId);
+      this.updateTitleUsingGPT(this.getChatId).then((title) => {
+        console.info(`Updated title to ${title}`);
+      });
     }
   }
 
@@ -131,14 +133,16 @@ export default class ChatHistoryManager {
     this.saveDebounced();
   }
 
-  private async updateTitleUsingGPT(chatId: string): Promise<void> {
+  private async updateTitleUsingGPT(chatId: string): Promise<string> {
     const history = this.getHistory(chatId);
     const question = history.history[history.history.length - 1].content;
     const answer = history.history[history.history.length - 2].content;
     const context = `USER:${question}\nAI:${answer}`;
     const title = await getChatTitle(context);
+    console.log("new title", title);
     this._historyMap[chatId].title = title;
     this.saveDebounced();
+    return title;
   }
 
   private getHistoryList(): ChatHistory[] {

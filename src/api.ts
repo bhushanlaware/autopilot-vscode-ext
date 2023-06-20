@@ -136,14 +136,15 @@ export async function getCodeCompletions(prompt: string, stop: string, cancellat
 }
 
 export async function getChatTitle(chatContext: string): Promise<string> {
-  const prompt = `Suggest me good title for this chat:\n\n${chatContext}\n\nTitle:`;
+  const prompt = `Suggest me good title for this CHAT::"""${chatContext}"""\n TITLE::`;
   const res = await getOpenApi().createCompletion({
     prompt,
-    stop: ["\n"],
-    model: "davinci-text-002",
+    model: "text-davinci-002",
     temperature: 0.5,
+    n: 1,
+    top_p: 1,
   });
-  return res.data.choices[0].text || "";
+  return res.data.choices[0].text?.trim() || "";
 }
 
 export const createEmbedding = async (...contents: string[]) => {
