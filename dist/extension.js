@@ -20,20 +20,9 @@ const vscode = __webpack_require__(1);
 const ConfigProvider_1 = __webpack_require__(2);
 const AutoCompleteProvider_1 = __webpack_require__(4);
 const ChatGPTViewProvider_1 = __webpack_require__(50);
-// import { SearchViewProvider } from "./GoogleViewProvider";
+const IndexingProvider_1 = __webpack_require__(52);
 function activate(context) {
     return __awaiter(this, void 0, void 0, function* () {
-        // const searchViewProvider = new SearchViewProvider(context);
-        // const searchViewPanel = vscode.window.registerWebviewViewProvider(
-        //   "autopilot.search",
-        //   searchViewProvider,
-        //   {
-        //     webviewOptions: {
-        //       retainContextWhenHidden: true,
-        //     },
-        //   }
-        // );
-        // context.subscriptions.push(searchViewPanel);
         const configProvider = new ConfigProvider_1.ConfigProvider();
         configProvider
             .getOpenApiKey()
@@ -41,6 +30,7 @@ function activate(context) {
             console.log(key);
             const autoCompleteProvider = new AutoCompleteProvider_1.AutoCompleteProvider(context);
             const chatGPTWebViewProvider = new ChatGPTViewProvider_1.ChatGPTViewProvider(context);
+            const indexingProvider = new IndexingProvider_1.IndexingProvider(context);
             const chatGPTWebViewPanel = vscode.window.registerWebviewViewProvider("autopilot.chat", chatGPTWebViewProvider, {
                 webviewOptions: {
                     retainContextWhenHidden: true,
@@ -48,6 +38,7 @@ function activate(context) {
             });
             context.subscriptions.push(chatGPTWebViewPanel);
             context.subscriptions.push(autoCompleteProvider);
+            context.subscriptions.push(indexingProvider);
         })
             .catch((error) => {
             console.error(error);
@@ -127,13 +118,14 @@ exports.ConfigProvider = ConfigProvider;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.COMPLETION_DEFAULT_CONFIGURATION = exports.CHAT_DEFAULT_CONFIGURATION = exports.CONFIGURATION_KEYS = exports.CHAT_HISTORY_FILE_NAME = exports.VIEW_RANGE_MAX_LINES = exports.SELECTED_CODE_MAX_LENGTH = exports.MAX_ALLOWED_LINE = exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = exports.MAX_PREVIOUS_LINE_FOR_PROMPT = void 0;
+exports.COMPLETION_DEFAULT_CONFIGURATION = exports.CHAT_DEFAULT_CONFIGURATION = exports.CONFIGURATION_KEYS = exports.TOP_INDEX = exports.CHAT_HISTORY_FILE_NAME = exports.VIEW_RANGE_MAX_LINES = exports.SELECTED_CODE_MAX_LENGTH = exports.MAX_ALLOWED_LINE = exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = exports.MAX_PREVIOUS_LINE_FOR_PROMPT = void 0;
 exports.MAX_PREVIOUS_LINE_FOR_PROMPT = 50;
 exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = 3;
 exports.MAX_ALLOWED_LINE = 50;
 exports.SELECTED_CODE_MAX_LENGTH = 1000;
 exports.VIEW_RANGE_MAX_LINES = 100;
 exports.CHAT_HISTORY_FILE_NAME = "chat_history.json";
+exports.TOP_INDEX = 2;
 exports.CONFIGURATION_KEYS = {
     name: "autopilot",
     autopilot: {
@@ -17485,7 +17477,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getChatTitle = exports.getCodeCompletions = exports.askQuestionWithPartialAnswers = exports.cancelGPTRequest = void 0;
+exports.createEmbedding = exports.getChatTitle = exports.getCodeCompletions = exports.askQuestionWithPartialAnswers = exports.cancelGPTRequest = void 0;
 const vscode = __webpack_require__(1);
 // @ts-ignore
 const encoder_1 = __webpack_require__(7);
@@ -17610,6 +17602,14 @@ function getChatTitle(chatContext) {
     });
 }
 exports.getChatTitle = getChatTitle;
+const createEmbedding = (...contents) => __awaiter(void 0, void 0, void 0, function* () {
+    const response = yield (0, utils_1.getOpenApi)().createEmbedding({
+        input: contents.join("\n"),
+        model: "text-embedding-ada-002",
+    });
+    return response.data.data[0].embedding;
+});
+exports.createEmbedding = createEmbedding;
 
 
 /***/ }),
@@ -22885,19 +22885,10 @@ exports.createParser = createParser;
 
 /***/ }),
 /* 50 */
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 "use strict";
 
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ChatGPTViewProvider = void 0;
 const vscode = __webpack_require__(1);
@@ -22914,14 +22905,7 @@ class ChatGPTViewProvider {
             const history = this.chatHistoryManager.currentChat;
             this.handleChatChange(history);
         });
-        const fileChangeListener = vscode.workspace.onDidChangeTextDocument((changes) => __awaiter(this, void 0, void 0, function* () {
-            for (const change of changes.contentChanges) {
-                const fileName = changes.document.fileName;
-                const fileContent = changes.document.getText();
-                this.files[fileName] = fileContent;
-            }
-        }));
-        this.disposables.push(fileChangeListener, vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)), vscode.commands.registerCommand("autopilot.chatHistory", () => this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))), vscode.commands.registerCommand("autopilot.clearAll", () => this.chatHistoryManager.clearHistory()));
+        this.disposables.push(vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)), vscode.commands.registerCommand("autopilot.chatHistory", () => this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))), vscode.commands.registerCommand("autopilot.clearAll", () => this.chatHistoryManager.clearHistory()));
     }
     handleChatChange(chatHistory) {
         if (this.webviewView) {
@@ -23274,6 +23258,145 @@ class ChatHistoryManager {
     }
 }
 exports["default"] = ChatHistoryManager;
+
+
+/***/ }),
+/* 52 */
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.IndexingProvider = void 0;
+const api_1 = __webpack_require__(6);
+const vscode = __webpack_require__(1);
+//@ts-expect-error
+const compute_cosine_similarity_1 = __webpack_require__(Object(function webpackMissingModule() { var e = new Error("Cannot find module 'compute-cosine-similarity'"); e.code = 'MODULE_NOT_FOUND'; throw e; }()));
+const lodash_1 = __webpack_require__(5);
+const utils_1 = __webpack_require__(48);
+const constant_1 = __webpack_require__(3);
+class IndexingProvider {
+    constructor(context) {
+        this.context = context;
+        this.disposables = [];
+        this.pendingFileChangesToBeIndexed = {};
+        const debouncedUpdateIndex = (0, lodash_1.debounce)(this.updateIndexing.bind(this), 1000);
+        const fileChangeListener = vscode.workspace.onDidChangeTextDocument((changes) => __awaiter(this, void 0, void 0, function* () {
+            for (const change of changes.contentChanges) {
+                const fileName = changes.document.fileName;
+                const fileContent = changes.document.getText();
+                this.pendingFileChangesToBeIndexed[fileName] = fileContent;
+            }
+            debouncedUpdateIndex();
+        }));
+        const getTopRelativeFileNamesCommands = vscode.commands.registerCommand("autopilot.getTopRelativeFileNames", this.getTopRelativeFileNames.bind(this));
+        this.createIndexing();
+        this.disposables.push(fileChangeListener, getTopRelativeFileNamesCommands);
+    }
+    updateIndexing() {
+        const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
+        statusBar.text = "$(search) indexing";
+        statusBar.tooltip = "Autopilot AI updating indexing";
+        statusBar.show();
+        this.disposables.push(statusBar);
+        const files = this.pendingFileChangesToBeIndexed;
+        this.updateEmbeddings(files).then(() => {
+            statusBar.hide();
+            this.pendingFileChangesToBeIndexed = {};
+        });
+    }
+    createIndexing() {
+        const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
+        statusBar.text = "$(search) indexing";
+        statusBar.tooltip = "Autopilot Indexing files";
+        statusBar.show();
+        this.disposables.push(statusBar);
+        (0, utils_1.readFiles)(this.context.extensionUri.fsPath).then((files) => {
+            this.createEmbeddings(files)
+                .then((index) => {
+                statusBar.hide();
+            })
+                .catch((err) => {
+                console.error(err);
+                statusBar.hide();
+            });
+        });
+    }
+    getEmbeddings() {
+        var _a;
+        return (_a = this.context.workspaceState.get("embeddings")) !== null && _a !== void 0 ? _a : {};
+    }
+    setEmbeddings(embeddings) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.context.workspaceState.update("embeddings", embeddings);
+        });
+    }
+    createEmbeddings(files) {
+        return __awaiter(this, void 0, void 0, function* () {
+            let embeddings = this.getEmbeddings();
+            if (embeddings) {
+                return embeddings;
+            }
+            embeddings = {};
+            yield Promise.all(Object.entries(files).map(([filename, content]) => __awaiter(this, void 0, void 0, function* () {
+                const embedding = yield (0, api_1.createEmbedding)(filename, content);
+                embeddings[filename] = embedding;
+            })));
+            yield this.setEmbeddings(embeddings);
+            return embeddings;
+        });
+    }
+    updateEmbeddings(files) {
+        return __awaiter(this, void 0, void 0, function* () {
+            let embeddings = this.getEmbeddings();
+            if (!embeddings) {
+                console.error("No embeddings found");
+                return;
+            }
+            yield Promise.all(Object.entries(files).map(([filename, newText]) => __awaiter(this, void 0, void 0, function* () {
+                const newEmbedding = yield (0, api_1.createEmbedding)(filename, newText);
+                embeddings[filename] = newEmbedding;
+            })));
+            yield this.setEmbeddings(embeddings);
+        });
+    }
+    getTopRelativeFileNames(question) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const embeddings = this.getEmbeddings();
+            if (!embeddings) {
+                console.error("No embeddings found for the given session and controlId");
+                return [];
+            }
+            const questionEmbedding = yield (0, api_1.createEmbedding)(question);
+            const similarities = {};
+            Object.entries(embeddings).forEach(([filename, embedding]) => {
+                similarities[filename] = (0, compute_cosine_similarity_1.default)(questionEmbedding, embedding);
+            });
+            const sortedFilenames = Object.entries(similarities)
+                .sort(([, a], [, b]) => b - a)
+                .map(([filename]) => filename)
+                .slice(0, constant_1.TOP_INDEX);
+            const topRelativeFileNames = [];
+            sortedFilenames.forEach((filename) => {
+                topRelativeFileNames.push(filename);
+            });
+            return topRelativeFileNames;
+        });
+    }
+    dispose() {
+        this.disposables.forEach((d) => d.dispose());
+    }
+}
+exports.IndexingProvider = IndexingProvider;
 
 
 /***/ })

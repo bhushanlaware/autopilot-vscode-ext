@@ -17,16 +17,7 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
       this.handleChatChange(history);
     });
 
-    const fileChangeListener = vscode.workspace.onDidChangeTextDocument(async (changes) => {
-      for (const change of changes.contentChanges) {
-        const fileName = changes.document.fileName;
-        const fileContent = changes.document.getText();
-        this.files[fileName] = fileContent;
-      }
-    });
-
     this.disposables.push(
-      fileChangeListener,
       vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)),
       vscode.commands.registerCommand("autopilot.chatHistory", () =>
         this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))

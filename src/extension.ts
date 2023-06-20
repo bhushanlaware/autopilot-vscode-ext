@@ -2,21 +2,9 @@ import * as vscode from "vscode";
 import { ConfigProvider } from "./ConfigProvider";
 import { AutoCompleteProvider } from "./AutoCompleteProvider";
 import { ChatGPTViewProvider } from "./ChatGPTViewProvider";
-// import { SearchViewProvider } from "./GoogleViewProvider";
+import { IndexingProvider } from "./IndexingProvider";
 
 export async function activate(context: vscode.ExtensionContext) {
-  // const searchViewProvider = new SearchViewProvider(context);
-  // const searchViewPanel = vscode.window.registerWebviewViewProvider(
-  //   "autopilot.search",
-  //   searchViewProvider,
-  //   {
-  //     webviewOptions: {
-  //       retainContextWhenHidden: true,
-  //     },
-  //   }
-  // );
-  // context.subscriptions.push(searchViewPanel);
-
   const configProvider = new ConfigProvider();
   configProvider
     .getOpenApiKey()
@@ -24,6 +12,7 @@ export async function activate(context: vscode.ExtensionContext) {
       console.log(key);
       const autoCompleteProvider = new AutoCompleteProvider(context);
       const chatGPTWebViewProvider = new ChatGPTViewProvider(context);
+      const indexingProvider = new IndexingProvider(context);
 
       const chatGPTWebViewPanel = vscode.window.registerWebviewViewProvider("autopilot.chat", chatGPTWebViewProvider, {
         webviewOptions: {
@@ -33,6 +22,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
       context.subscriptions.push(chatGPTWebViewPanel);
       context.subscriptions.push(autoCompleteProvider);
+      context.subscriptions.push(indexingProvider);
     })
     .catch((error) => {
       console.error(error);

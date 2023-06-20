@@ -149,3 +149,11 @@ export async function getChatTitle(chatContext: string): Promise<string> {
   });
   return res.data.choices[0].text || "";
 }
+
+export const createEmbedding = async (...contents: string[]) => {
+  const response = await getOpenApi().createEmbedding({
+    input: contents.join("\n"),
+    model: "text-embedding-ada-002",
+  });
+  return response.data.data[0].embedding;
+};

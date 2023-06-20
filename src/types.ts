@@ -45,3 +45,7 @@ export interface CompletionConfig {
   maxTokens: number;
   numberOfCompletions: number;
 }
+
+export interface IEmbedding {
+  [fileName: string]: number[];
+}
