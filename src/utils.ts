@@ -247,9 +247,13 @@ export async function getFiles(filePaths: string[]): Promise<Files> {
   const files: Files = {};
   await Promise.all(
     filePaths.map(async (filePath) => {
-      const url = vscode.Uri.file(filePath);
-      const file = await vscode.workspace.openTextDocument(url);
-      files[file.fileName] = file.getText();
+      try {
+        const url = vscode.Uri.file(filePath);
+        const file = await vscode.workspace.openTextDocument(url);
+        files[file.fileName] = file.getText();
+      } catch (error) {
+        console.error(error);
+      }
     })
   );
   return files;

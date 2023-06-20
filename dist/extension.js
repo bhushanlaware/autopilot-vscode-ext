@@ -22746,9 +22746,14 @@ function getFiles(filePaths) {
     return __awaiter(this, void 0, void 0, function* () {
         const files = {};
         yield Promise.all(filePaths.map((filePath) => __awaiter(this, void 0, void 0, function* () {
-            const url = vscode.Uri.file(filePath);
-            const file = yield vscode.workspace.openTextDocument(url);
-            files[file.fileName] = file.getText();
+            try {
+                const url = vscode.Uri.file(filePath);
+                const file = yield vscode.workspace.openTextDocument(url);
+                files[file.fileName] = file.getText();
+            }
+            catch (error) {
+                console.error(error);
+            }
         })));
         return files;
     });
