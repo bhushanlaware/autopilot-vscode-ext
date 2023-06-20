@@ -26,9 +26,8 @@ export function cancelGPTRequest() {
 export function askQuestionWithPartialAnswers(question: string, history: Chat[], onPartialAnswer: (_: string) => void): Promise<string> {
   return new Promise<string>(async (resolve, reject) => {
     const { temperature, model } = getChatConfig();
-    const relativeFileNames = (await vscode.commands.executeCommand("autopilot.getTopRelativeFileNames")) as string[];
-    const relativeFiles = await getFiles(relativeFileNames);
-    const systemInstruction = getInstruction(relativeFiles);
+    const relativeContext = (await vscode.commands.executeCommand("autopilot.getContext")) as Files;
+    const systemInstruction = getInstruction(relativeContext);
 
     let fullResponse = "";
     abortController = new AbortController();

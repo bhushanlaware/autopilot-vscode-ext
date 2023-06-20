@@ -28,6 +28,21 @@ export async function activate(context: vscode.ExtensionContext) {
       console.error(error);
       vscode.window.showErrorMessage("Error getting Open API Key. Please check the extension settings.");
     });
+
+  vscode.commands.registerCommand("autopilot.reset", async () => {
+    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+    statusBarItem.text = "$(zap) Resetting Autopilot";
+    const globalKeys = await context.globalState.keys();
+    for (const key of globalKeys) {
+      await context.globalState.update(key, undefined);
+    }
+    const workSpaceKeys = await context.workspaceState.keys();
+    for (const key of workSpaceKeys) {
+      await context.workspaceState.update(key, undefined);
+    }
+    statusBarItem.text = "$(zap) Autopilot Reset";
+    statusBarItem.dispose();
+  });
 }
 
 // This method is called when your extension is deactivated

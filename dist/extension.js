@@ -44,6 +44,20 @@ function activate(context) {
             console.error(error);
             vscode.window.showErrorMessage("Error getting Open API Key. Please check the extension settings.");
         });
+        vscode.commands.registerCommand("autopilot.reset", () => __awaiter(this, void 0, void 0, function* () {
+            const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+            statusBarItem.text = "$(zap) Resetting Autopilot";
+            const globalKeys = yield context.globalState.keys();
+            for (const key of globalKeys) {
+                yield context.globalState.update(key, undefined);
+            }
+            const workSpaceKeys = yield context.workspaceState.keys();
+            for (const key of workSpaceKeys) {
+                yield context.workspaceState.update(key, undefined);
+            }
+            statusBarItem.text = "$(zap) Autopilot Reset";
+            statusBarItem.dispose();
+        }));
     });
 }
 exports.activate = activate;
@@ -118,7 +132,7 @@ exports.ConfigProvider = ConfigProvider;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.COMPLETION_DEFAULT_CONFIGURATION = exports.CHAT_DEFAULT_CONFIGURATION = exports.CONFIGURATION_KEYS = exports.TOP_INDEX = exports.CHAT_HISTORY_FILE_NAME = exports.VIEW_RANGE_MAX_LINES = exports.SELECTED_CODE_MAX_LENGTH = exports.MAX_ALLOWED_LINE = exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = exports.MAX_PREVIOUS_LINE_FOR_PROMPT = void 0;
+exports.COMPLETION_DEFAULT_CONFIGURATION = exports.CHAT_DEFAULT_CONFIGURATION = exports.CONFIGURATION_KEYS = exports.EMBEDDING_DEBOUNCE_TIMER = exports.CHUNK_SIZE = exports.TOP_INDEX = exports.CHAT_HISTORY_FILE_NAME = exports.VIEW_RANGE_MAX_LINES = exports.SELECTED_CODE_MAX_LENGTH = exports.MAX_ALLOWED_LINE = exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = exports.MAX_PREVIOUS_LINE_FOR_PROMPT = void 0;
 exports.MAX_PREVIOUS_LINE_FOR_PROMPT = 50;
 exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = 3;
 exports.MAX_ALLOWED_LINE = 50;
@@ -126,6 +140,8 @@ exports.SELECTED_CODE_MAX_LENGTH = 1000;
 exports.VIEW_RANGE_MAX_LINES = 100;
 exports.CHAT_HISTORY_FILE_NAME = "chat_history.json";
 exports.TOP_INDEX = 2;
+exports.CHUNK_SIZE = 2500;
+exports.EMBEDDING_DEBOUNCE_TIMER = 5000;
 exports.CONFIGURATION_KEYS = {
     name: "autopilot",
     autopilot: {
@@ -17493,9 +17509,8 @@ exports.cancelGPTRequest = cancelGPTRequest;
 function askQuestionWithPartialAnswers(question, history, onPartialAnswer) {
     return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
         const { temperature, model } = (0, utils_1.getChatConfig)();
-        const relativeFileNames = (yield vscode.commands.executeCommand("autopilot.getTopRelativeFileNames"));
-        const relativeFiles = yield (0, utils_1.getFiles)(relativeFileNames);
-        const systemInstruction = (0, utils_1.getInstruction)(relativeFiles);
+        const relativeContext = (yield vscode.commands.executeCommand("autopilot.getContext"));
+        const systemInstruction = (0, utils_1.getInstruction)(relativeContext);
         let fullResponse = "";
         abortController = new AbortController();
         const systemMessage = {
@@ -22481,7 +22496,7 @@ var __asyncGenerator = (this && this.__asyncGenerator) || function (thisArg, _ar
     function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.cosineSimilarity = exports.getFiles = exports.getOpenApi = exports.getOpenAIKey = exports.getChatConfig = exports.getCompletionConfig = exports.getVscodeControlInstructions = exports.createFileIfNotExists = exports.checkIfFileExists = exports.uuid = exports.fetchSSE = exports.getInstruction = exports.getOpenedFiles = exports.getSelectedCode = exports.getFilesPromptMessage = exports.getWorkspaceBasePath = exports.openaiBaseURL = exports.modelMaxTokens = exports.readFiles = void 0;
+exports.readFileInChunks = exports.cosineSimilarity = exports.getFiles = exports.getOpenApi = exports.getOpenAIKey = exports.getChatConfig = exports.getCompletionConfig = exports.getVscodeControlInstructions = exports.createFileIfNotExists = exports.checkIfFileExists = exports.uuid = exports.fetchSSE = exports.getInstruction = exports.getOpenedFiles = exports.getSelectedCode = exports.getFilesPromptMessage = exports.getWorkspaceBasePath = exports.openaiBaseURL = exports.modelMaxTokens = exports.readFiles = void 0;
 const eventsource_parser_1 = __webpack_require__(49);
 const vscode = __webpack_require__(1);
 const constant_1 = __webpack_require__(3);
@@ -22754,6 +22769,14 @@ function cosineSimilarity(arr1, arr2) {
     return similarity;
 }
 exports.cosineSimilarity = cosineSimilarity;
+function readFileInChunks(fileContent, chunkSize = 2000) {
+    const chunks = [];
+    for (let i = 0; i < fileContent.length; i += chunkSize) {
+        chunks.push(fileContent.slice(i, i + chunkSize));
+    }
+    return chunks;
+}
+exports.readFileInChunks = readFileInChunks;
 
 
 /***/ }),
@@ -23233,7 +23256,7 @@ class IndexingProvider {
         this.context = context;
         this.disposables = [];
         this.pendingFileChangesToBeIndexed = {};
-        const debouncedUpdateIndex = (0, lodash_1.debounce)(this.updateIndexing.bind(this), 1000);
+        const debouncedUpdateIndex = (0, lodash_1.debounce)(this.updateIndexing.bind(this), constant_1.EMBEDDING_DEBOUNCE_TIMER);
         const fileChangeListener = vscode.workspace.onDidChangeTextDocument((changes) => __awaiter(this, void 0, void 0, function* () {
             for (const change of changes.contentChanges) {
                 const fileName = changes.document.fileName;
@@ -23242,7 +23265,7 @@ class IndexingProvider {
             }
             debouncedUpdateIndex();
         }));
-        const getTopRelativeFileNamesCommands = vscode.commands.registerCommand("autopilot.getTopRelativeFileNames", this.getTopRelativeFileNames.bind(this));
+        const getTopRelativeFileNamesCommands = vscode.commands.registerCommand("autopilot.getContext", this.getContext.bind(this));
         this.createIndexing();
         this.disposables.push(fileChangeListener, getTopRelativeFileNamesCommands);
     }
@@ -23253,8 +23276,9 @@ class IndexingProvider {
         statusBar.show();
         this.disposables.push(statusBar);
         const files = this.pendingFileChangesToBeIndexed;
-        this.updateEmbeddings(files).then(() => {
+        this.createEmbeddings(files, true).then(() => {
             statusBar.hide();
+            statusBar.dispose();
             this.pendingFileChangesToBeIndexed = {};
         });
     }
@@ -23286,31 +23310,20 @@ class IndexingProvider {
             yield this.context.workspaceState.update("embeddings", embeddings);
         });
     }
-    createEmbeddings(files) {
+    createEmbeddings(files, isUpdate = false) {
         return __awaiter(this, void 0, void 0, function* () {
             let embeddings = this.getEmbeddings();
             yield Promise.all(Object.entries(files).map(([filename, content]) => __awaiter(this, void 0, void 0, function* () {
-                if (!embeddings[filename]) {
-                    const embedding = yield (0, api_1.createEmbedding)(filename, content);
-                    embeddings[filename] = embedding;
+                if (isUpdate || !embeddings[filename]) {
+                    const chunks = (0, utils_1.readFileInChunks)(content, constant_1.CHUNK_SIZE);
+                    yield Promise.all(chunks.map((chunk, index) => __awaiter(this, void 0, void 0, function* () {
+                        const embedding = yield (0, api_1.createEmbedding)(filename, chunk);
+                        embeddings[`${filename}$${index}`] = embedding;
+                    })));
                 }
             })));
             yield this.setEmbeddings(embeddings);
             return embeddings;
-        });
-    }
-    updateEmbeddings(files) {
-        return __awaiter(this, void 0, void 0, function* () {
-            let embeddings = this.getEmbeddings();
-            if (!embeddings) {
-                console.error("No embeddings found");
-                return;
-            }
-            yield Promise.all(Object.entries(files).map(([filename, newText]) => __awaiter(this, void 0, void 0, function* () {
-                const newEmbedding = yield (0, api_1.createEmbedding)(filename, newText);
-                embeddings[filename] = newEmbedding;
-            })));
-            yield this.setEmbeddings(embeddings);
         });
     }
     getTopRelativeFileNames(question) {
@@ -23336,6 +23349,25 @@ class IndexingProvider {
                 topRelativeFileNames.push(filename);
             });
             return topRelativeFileNames;
+        });
+    }
+    getContext(query) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const relativeFileNamesWithChunks = yield this.getTopRelativeFileNames(query);
+            const fileNames = relativeFileNamesWithChunks.map((name) => name.split("$")[0]);
+            const relativeFiles = yield (0, utils_1.getFiles)(fileNames);
+            const requiredContext = {};
+            relativeFileNamesWithChunks.forEach((name) => {
+                const [fileName, chunkNumberStr] = name.split("$");
+                const chunkNumber = parseInt(chunkNumberStr);
+                const fileContent = relativeFiles[fileName];
+                if (fileContent) {
+                    const start = chunkNumber * constant_1.CHUNK_SIZE;
+                    const end = start + constant_1.CHUNK_SIZE;
+                    requiredContext[fileName] = fileContent.slice(start, end);
+                }
+            });
+            return requiredContext;
         });
     }
     dispose() {

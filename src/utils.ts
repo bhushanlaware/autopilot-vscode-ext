@@ -271,3 +271,11 @@ export function cosineSimilarity(arr1: number[], arr2: number[]) {
 
   return similarity;
 }
+
+export function readFileInChunks(fileContent: string, chunkSize = 2000) {
+  const chunks = [];
+  for (let i = 0; i < fileContent.length; i += chunkSize) {
+    chunks.push(fileContent.slice(i, i + chunkSize));
+  }
+  return chunks;
+}

@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import ChatHistoryManager, { ChatHistory } from "./ChatHistoryManager";
 import { askQuestionWithPartialAnswers, cancelGPTRequest } from "./api";
 import { Files } from "./types";
-import { createFileIfNotExists, readFiles } from "./utils";
+import { readFiles } from "./utils";
 
 export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
   private files: Files = {};

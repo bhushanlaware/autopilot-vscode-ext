@@ -2,15 +2,15 @@ import { createEmbedding } from "./api";
 import * as vscode from "vscode";
 import { Files, IEmbedding } from "./types";
 import { debounce } from "lodash";
-import { readFiles, cosineSimilarity } from "./utils";
-import { TOP_INDEX } from "./constant";
+import { readFiles, cosineSimilarity, readFileInChunks, getFiles } from "./utils";
+import { CHUNK_SIZE, EMBEDDING_DEBOUNCE_TIMER, TOP_INDEX } from "./constant";
 
 export class IndexingProvider implements vscode.Disposable {
   disposables: vscode.Disposable[] = [];
   pendingFileChangesToBeIndexed: Files = {};
 
   constructor(private readonly context: vscode.ExtensionContext) {
-    const debouncedUpdateIndex = debounce(this.updateIndexing.bind(this), 1000);
+    const debouncedUpdateIndex = debounce(this.updateIndexing.bind(this), EMBEDDING_DEBOUNCE_TIMER);
     const fileChangeListener = vscode.workspace.onDidChangeTextDocument(async (changes) => {
       for (const change of changes.contentChanges) {
         const fileName = changes.document.fileName;
@@ -20,10 +20,7 @@ export class IndexingProvider implements vscode.Disposable {
       debouncedUpdateIndex();
     });
 
-    const getTopRelativeFileNamesCommands = vscode.commands.registerCommand(
-      "autopilot.getTopRelativeFileNames",
-      this.getTopRelativeFileNames.bind(this)
-    );
+    const getTopRelativeFileNamesCommands = vscode.commands.registerCommand("autopilot.getContext", this.getContext.bind(this));
 
     this.createIndexing();
     this.disposables.push(fileChangeListener, getTopRelativeFileNamesCommands);
@@ -36,8 +33,9 @@ export class IndexingProvider implements vscode.Disposable {
     statusBar.show();
     this.disposables.push(statusBar);
     const files = this.pendingFileChangesToBeIndexed;
-    this.updateEmbeddings(files).then(() => {
+    this.createEmbeddings(files, true).then(() => {
       statusBar.hide();
+      statusBar.dispose();
       this.pendingFileChangesToBeIndexed = {};
     });
   }
@@ -71,37 +69,24 @@ export class IndexingProvider implements vscode.Disposable {
     await this.context.workspaceState.update("embeddings", embeddings);
   }
 
-  private async createEmbeddings(files: Files) {
+  private async createEmbeddings(files: Files, isUpdate = false) {
     let embeddings = this.getEmbeddings();
     await Promise.all(
       Object.entries(files).map(async ([filename, content]) => {
-        if (!embeddings[filename]) {
-          const embedding = await createEmbedding(filename, content);
-          embeddings[filename] = embedding;
+        if (isUpdate || !embeddings[filename]) {
+          const chunks = readFileInChunks(content, CHUNK_SIZE);
+          await Promise.all(
+            chunks.map(async (chunk, index) => {
+              const embedding = await createEmbedding(filename, chunk);
+              embeddings[`${filename}$${index}`] = embedding;
+            })
+          );
         }
       })
     );
 
     await this.setEmbeddings(embeddings);
     return embeddings;
-  }
-
-  private async updateEmbeddings(files: Files) {
-    let embeddings = this.getEmbeddings();
-
-    if (!embeddings) {
-      console.error("No embeddings found");
-      return;
-    }
-
-    await Promise.all(
-      Object.entries(files).map(async ([filename, newText]) => {
-        const newEmbedding = await createEmbedding(filename, newText);
-        embeddings[filename] = newEmbedding;
-      })
-    );
-
-    await this.setEmbeddings(embeddings);
   }
 
   private async getTopRelativeFileNames(question: string): Promise<string[]> {
@@ -131,6 +116,28 @@ export class IndexingProvider implements vscode.Disposable {
       topRelativeFileNames.push(filename);
     });
     return topRelativeFileNames;
+  }
+
+  private async getContext(query: string) {
+    const relativeFileNamesWithChunks = await this.getTopRelativeFileNames(query);
+
+    const fileNames = relativeFileNamesWithChunks.map((name) => name.split("$")[0]);
+    const relativeFiles = await getFiles(fileNames);
+
+    const requiredContext: Files = {};
+    relativeFileNamesWithChunks.forEach((name) => {
+      const [fileName, chunkNumberStr] = name.split("$");
+      const chunkNumber = parseInt(chunkNumberStr);
+      const fileContent = relativeFiles[fileName];
+
+      if (fileContent) {
+        const start = chunkNumber * CHUNK_SIZE;
+        const end = start + CHUNK_SIZE;
+        requiredContext[fileName] = fileContent.slice(start, end);
+      }
+    });
+
+    return requiredContext;
   }
 
   dispose() {

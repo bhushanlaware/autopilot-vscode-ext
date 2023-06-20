@@ -32,6 +32,10 @@
       {
         "command": "autopilot.startNew",
         "title": "Start New Chat"
+      },
+      {
+        "command": "autopilot.reset",
+        "title": "Reset Autopilot"
       }
     ],
     "viewsContainers": {
@@ -40,11 +44,6 @@
           "id": "autopilot-chat-view",
           "title": "Autopilot",
           "icon": "$(hubot)"
-        },
-        {
-          "id": "autopilot-search-view",
-          "title": "Search",
-          "icon": "resources/google.svg"
         }
       ]
     },
@@ -54,13 +53,6 @@
           "type": "webview",
           "id": "autopilot.chat",
           "name": "AI Chat"
-        }
-      ],
-      "autopilot-search-view": [
-        {
-          "type": "webview",
-          "id": "autopilot.search",
-          "name": "Search"
         }
       ]
     },
@@ -76,17 +68,6 @@
           ],
           "default": "gpt-3.5-turbo",
           "description": "Choose the GPT model to use for Chat."
-        },
-        "autopilot.chatContext": {
-          "type": "string",
-          "enum": [
-            "None",
-            "Current File",
-            "Opened Files",
-            "All Files"
-          ],
-          "default": "None",
-          "description": "Choose the context for the chat. Please note that more context you give it consume more token."
         },
         "autopilot.chatTemperature": {
           "type": "number",
