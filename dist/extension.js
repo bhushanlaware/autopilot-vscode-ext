@@ -22952,9 +22952,6 @@ class ChatGPTViewProvider {
                 case "clear_chat":
                     this.chatHistoryManager.startNewChat();
                     break;
-                case "insert_code":
-                    this.insertText("/src/App.js", 10, 1, data.code);
-                    break;
             }
         });
         const waitForHistoryMangerInit = this.chatHistoryManager.waitForInit();
