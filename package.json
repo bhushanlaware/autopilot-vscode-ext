@@ -126,6 +126,17 @@
             5
           ]
         },
+        "autopilot.chatContext": {
+          "type": "string",
+          "enum": [
+            "None",
+            "Current File",
+            "Opened Files",
+            "All Files"
+          ],
+          "default": "Opened Files",
+          "description": "Files to do indexing on.  As we do embedding it will increase cost when you select all files."
+        },
         "autopilot.openaiAPIKey": {
           "type": "string",
           "default": "",

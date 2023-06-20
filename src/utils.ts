@@ -1,4 +1,5 @@
 import { createParser } from "eventsource-parser";
+import { Configuration, OpenAIApi } from "openai";
 import * as vscode from "vscode";
 import {
   CHAT_DEFAULT_CONFIGURATION,
@@ -6,10 +7,8 @@ import {
   CONFIGURATION_KEYS,
   MAX_ALLOWED_LINE,
   SELECTED_CODE_MAX_LENGTH,
-  VIEW_RANGE_MAX_LINES,
 } from "./constant";
-import { ChatConfig, ChatContext, CompletionConfig, Files } from "./types";
-import { Configuration, OpenAIApi } from "openai";
+import { ChatConfig, CompletionConfig, Files } from "./types";
 
 export async function readFiles(filePath: any) {
   const files: Files = {};

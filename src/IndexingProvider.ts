@@ -2,8 +2,9 @@ import { createEmbedding } from "./api";
 import * as vscode from "vscode";
 import { Files, IEmbedding } from "./types";
 import { debounce } from "lodash";
-import { readFiles, cosineSimilarity, readFileInChunks, getFiles } from "./utils";
-import { CHUNK_SIZE, EMBEDDING_DEBOUNCE_TIMER, TOP_INDEX } from "./constant";
+import { readFiles, cosineSimilarity, readFileInChunks, getFiles, getOpenedFiles } from "./utils";
+import { CHAT_CONTEXT, CHUNK_SIZE, EMBEDDING_DEBOUNCE_TIMER, TOP_INDEX } from "./constant";
+import { ChatContext } from "./types";
 
 export class IndexingProvider implements vscode.Disposable {
   disposables: vscode.Disposable[] = [];
@@ -18,6 +19,13 @@ export class IndexingProvider implements vscode.Disposable {
         this.pendingFileChangesToBeIndexed[fileName] = fileContent;
       }
       debouncedUpdateIndex();
+    });
+
+    //on file open
+    vscode.workspace.onDidOpenTextDocument(async (document) => {
+      const fileName = document.fileName;
+      const fileContent = document.getText();
+      await this.createEmbeddings({ [fileName]: fileContent });
     });
 
     const getTopRelativeFileNamesCommands = vscode.commands.registerCommand("autopilot.getContext", this.getContext.bind(this));
@@ -44,29 +52,43 @@ export class IndexingProvider implements vscode.Disposable {
     });
   }
 
-  private createIndexing() {
-    const isFileIndexingEnabled = vscode.workspace.getConfiguration("autopilot").get("enableFileIndexing");
-    if (!isFileIndexingEnabled) {
-      return;
-    }
-    console.log("started indexing");
+  private getStatusBar() {
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
     statusBar.text = "$(search) indexing";
     statusBar.tooltip = "Autopilot Indexing files";
     statusBar.show();
-    this.disposables.push(statusBar);
+    return statusBar;
+  }
 
-    readFiles(this.context.extensionUri.fsPath).then((files) => {
-      console.log(files);
-      this.createEmbeddings(files)
-        .then((index) => {
-          statusBar.hide();
-        })
-        .catch((err) => {
-          console.error(err);
-          statusBar.hide();
-        });
-    });
+  private async createIndexing() {
+    const isFileIndexingEnabled = vscode.workspace.getConfiguration("autopilot").get("enableFileIndexing");
+    const chatContext = vscode.workspace.getConfiguration("autopilot").get<ChatContext>("chatContext");
+    if (!isFileIndexingEnabled || !chatContext) {
+      return;
+    }
+
+    let files: Files = {};
+    switch (chatContext) {
+      case CHAT_CONTEXT.allFiles: {
+        files = await readFiles(this.context.extensionUri.fsPath);
+        break;
+      }
+      case CHAT_CONTEXT.openedFiles: {
+        files = getOpenedFiles();
+        break;
+      }
+      case CHAT_CONTEXT.currentFile: {
+        const openedFile = vscode.window.activeTextEditor?.document;
+        if (openedFile) {
+          files[openedFile.fileName] = openedFile?.getText();
+        }
+        break;
+      }
+      case CHAT_CONTEXT.None:
+      default:
+        break;
+    }
+    await this.createEmbeddings(files);
   }
 
   private getEmbeddings(): IEmbedding {
@@ -81,22 +103,26 @@ export class IndexingProvider implements vscode.Disposable {
     if (!this.isEnabled) {
       return;
     }
+    const statusBar = this.getStatusBar();
     let embeddings = this.getEmbeddings();
     await Promise.all(
       Object.entries(files).map(async ([filename, content]) => {
-        if (isUpdate || !embeddings[filename]) {
-          const chunks = readFileInChunks(content, CHUNK_SIZE);
-          await Promise.all(
-            chunks.map(async (chunk, index) => {
+        const chunks = readFileInChunks(content, CHUNK_SIZE);
+        await Promise.all(
+          chunks.map(async (chunk, index) => {
+            const embeddingKey = `${filename}$${index}`;
+
+            if (isUpdate || !embeddings[embeddingKey]) {
               const embedding = await createEmbedding(filename, chunk);
-              embeddings[`${filename}$${index}`] = embedding;
-            })
-          );
-        }
+              embeddings[embeddingKey] = embedding;
+            }
+          })
+        );
       })
     );
 
     await this.setEmbeddings(embeddings);
+    statusBar.dispose();
     return embeddings;
   }
 

@@ -39,3 +39,10 @@ export const COMPLETION_DEFAULT_CONFIGURATION: CompletionConfig = {
   numberOfCompletions: 1,
   maxTokens: 100,
 };
+
+export const CHAT_CONTEXT = {
+  allFiles: "All Files",
+  None: "None",
+  currentFile: "Current File",
+  openedFiles: "Opened Files",
+};

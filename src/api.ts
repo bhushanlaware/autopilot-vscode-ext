@@ -117,6 +117,7 @@ export async function getCodeCompletions(prompt: string, stop: string, cancellat
         stop,
         model: config.model,
         temperature: config.temperature,
+        max_tokens: config.maxTokens,
       },
       {
         signal: abortController.signal,
