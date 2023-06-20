@@ -8,6 +8,7 @@ import {
   fetchSSE,
   getChatConfig,
   getCompletionConfig,
+  getFiles,
   getInstruction,
   getOpenAIKey,
   getOpenApi,
@@ -22,17 +23,14 @@ export function cancelGPTRequest() {
   }
 }
 
-export function askQuestionWithPartialAnswers(
-  question: string,
-  history: Chat[],
-  files: Files,
-  onPartialAnswer: (_: string) => void
-): Promise<string> {
+export function askQuestionWithPartialAnswers(question: string, history: Chat[], onPartialAnswer: (_: string) => void): Promise<string> {
   return new Promise<string>(async (resolve, reject) => {
-    const { temperature, model, context } = getChatConfig();
-    const systemInstruction = getInstruction(context, files);
-    let fullResponse = "";
+    const { temperature, model } = getChatConfig();
+    const relativeFileNames = (await vscode.commands.executeCommand("autopilot.getTopRelativeFileNames")) as string[];
+    const relativeFiles = await getFiles(relativeFileNames);
+    const systemInstruction = getInstruction(relativeFiles);
 
+    let fullResponse = "";
     abortController = new AbortController();
 
     const systemMessage = {
@@ -140,7 +138,6 @@ export async function getCodeCompletions(prompt: string, stop: string, cancellat
 
 export async function getChatTitle(chatContext: string): Promise<string> {
   const prompt = `Suggest me good title for this chat:\n\n${chatContext}\n\nTitle:`;
-
   const res = await getOpenApi().createCompletion({
     prompt,
     stop: ["\n"],

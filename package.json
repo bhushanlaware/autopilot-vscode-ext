@@ -140,6 +140,11 @@
           "type": "string",
           "default": "",
           "description": "Open API Key"
+        },
+        "autopilot.chatId": {
+          "type": "string",
+          "default": "",
+          "description": "Current chat id"
         }
       }
     }
@@ -155,7 +160,6 @@
     "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. .",
     "build-react": "webpack build --config ./webpack-react.config.js",
     "watch-react": "webpack watch --config ./webpack-react.config.js",
-    "postinstall": "yarn build-react",
     "watch": "yarn watch-react & yarn watch-web",
     "extension": "vsce package",
     "package-web": "yarn build-react && webpack --mode production --devtool hidden-source-map --config extension.webpack.config.js"

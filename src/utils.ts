@@ -94,44 +94,13 @@ export function getOpenedFiles() {
   return openedFiles;
 }
 
-export function getInstruction(context: ChatContext, files: Files): string {
+export function getInstruction(files: Files): string {
   const instructions = [];
   instructions.push("INSTRUCTION:You are a helpful assistant.");
 
   // fileContext
-  switch (context) {
-    case "All Files":
-      instructions.push("You have access to all files in the workspace.");
-      instructions.push(getFilesPromptMessage(files));
-      break;
-
-    case "Opened Files":
-      const openedFiles = getOpenedFiles();
-      instructions.push("You have access to all opened files in the workspace. Ask user to open the file you need access to.");
-      instructions.push(getFilesPromptMessage(openedFiles));
-
-    case "Current File":
-      const activeEditor = vscode.window.activeTextEditor;
-      if (activeEditor) {
-        const path = activeEditor.document.uri.path;
-        const content = activeEditor.document.getText(
-          new vscode.Range(
-            new vscode.Position(Math.max(0, activeEditor.selection.active.line - VIEW_RANGE_MAX_LINES), 0),
-            new vscode.Position(activeEditor.selection.active.line + VIEW_RANGE_MAX_LINES, 0)
-          )
-        );
-        instructions.push("You have access to the current file in the workspace. Ask user to open file you need access to.");
-        instructions.push(`CODE:\n${path}\n\`\`\`\n${content}\n\`\`\``);
-      }
-      break;
-
-    case "None":
-      instructions.push("You don't have access to any files in the workspace. Ask user to copy and paste the code in the chat.");
-      break;
-
-    default:
-      break;
-  }
+  instructions.push("Please refer the relative files in context to user query.");
+  instructions.push(getFilesPromptMessage(files));
 
   // Selected code
   const selectedCode = getSelectedCode().slice(0, SELECTED_CODE_MAX_LENGTH);
@@ -272,4 +241,33 @@ export function getOpenApi() {
     apiKey,
   });
   return new OpenAIApi(configuration);
+}
+
+export async function getFiles(filePaths: string[]): Promise<Files> {
+  const files: Files = {};
+  await Promise.all(
+    filePaths.map(async (filePath) => {
+      const url = vscode.Uri.file(filePath);
+      const file = await vscode.workspace.openTextDocument(url);
+      files[file.fileName] = file.getText();
+    })
+  );
+  return files;
+}
+export function cosineSimilarity(arr1: number[], arr2: number[]) {
+  var dotProduct = 0;
+  var mA = 0;
+  var mB = 0;
+
+  for (var i = 0; i < arr1.length; i++) {
+    dotProduct += arr1[i] * arr2[i];
+    mA += arr1[i] * arr1[i];
+    mB += arr2[i] * arr2[i];
+  }
+
+  mA = Math.sqrt(mA);
+  mB = Math.sqrt(mB);
+  var similarity = dotProduct / (mA * mB);
+
+  return similarity;
 }

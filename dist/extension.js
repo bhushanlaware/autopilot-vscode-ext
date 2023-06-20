@@ -17490,10 +17490,12 @@ function cancelGPTRequest() {
     }
 }
 exports.cancelGPTRequest = cancelGPTRequest;
-function askQuestionWithPartialAnswers(question, history, files, onPartialAnswer) {
+function askQuestionWithPartialAnswers(question, history, onPartialAnswer) {
     return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
-        const { temperature, model, context } = (0, utils_1.getChatConfig)();
-        const systemInstruction = (0, utils_1.getInstruction)(context, files);
+        const { temperature, model } = (0, utils_1.getChatConfig)();
+        const relativeFileNames = (yield vscode.commands.executeCommand("autopilot.getTopRelativeFileNames"));
+        const relativeFiles = yield (0, utils_1.getFiles)(relativeFileNames);
+        const systemInstruction = (0, utils_1.getInstruction)(relativeFiles);
         let fullResponse = "";
         abortController = new AbortController();
         const systemMessage = {
@@ -22479,7 +22481,7 @@ var __asyncGenerator = (this && this.__asyncGenerator) || function (thisArg, _ar
     function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getOpenApi = exports.getOpenAIKey = exports.getChatConfig = exports.getCompletionConfig = exports.getVscodeControlInstructions = exports.createFileIfNotExists = exports.checkIfFileExists = exports.uuid = exports.fetchSSE = exports.getInstruction = exports.getOpenedFiles = exports.getSelectedCode = exports.getFilesPromptMessage = exports.getWorkspaceBasePath = exports.openaiBaseURL = exports.modelMaxTokens = exports.readFiles = void 0;
+exports.cosineSimilarity = exports.getFiles = exports.getOpenApi = exports.getOpenAIKey = exports.getChatConfig = exports.getCompletionConfig = exports.getVscodeControlInstructions = exports.createFileIfNotExists = exports.checkIfFileExists = exports.uuid = exports.fetchSSE = exports.getInstruction = exports.getOpenedFiles = exports.getSelectedCode = exports.getFilesPromptMessage = exports.getWorkspaceBasePath = exports.openaiBaseURL = exports.modelMaxTokens = exports.readFiles = void 0;
 const eventsource_parser_1 = __webpack_require__(49);
 const vscode = __webpack_require__(1);
 const constant_1 = __webpack_require__(3);
@@ -22561,35 +22563,13 @@ function getOpenedFiles() {
     return openedFiles;
 }
 exports.getOpenedFiles = getOpenedFiles;
-function getInstruction(context, files) {
+function getInstruction(files) {
     var _a;
     const instructions = [];
     instructions.push("INSTRUCTION:You are a helpful assistant.");
     // fileContext
-    switch (context) {
-        case "All Files":
-            instructions.push("You have access to all files in the workspace.");
-            instructions.push(getFilesPromptMessage(files));
-            break;
-        case "Opened Files":
-            const openedFiles = getOpenedFiles();
-            instructions.push("You have access to all opened files in the workspace. Ask user to open the file you need access to.");
-            instructions.push(getFilesPromptMessage(openedFiles));
-        case "Current File":
-            const activeEditor = vscode.window.activeTextEditor;
-            if (activeEditor) {
-                const path = activeEditor.document.uri.path;
-                const content = activeEditor.document.getText(new vscode.Range(new vscode.Position(Math.max(0, activeEditor.selection.active.line - constant_1.VIEW_RANGE_MAX_LINES), 0), new vscode.Position(activeEditor.selection.active.line + constant_1.VIEW_RANGE_MAX_LINES, 0)));
-                instructions.push("You have access to the current file in the workspace. Ask user to open file you need access to.");
-                instructions.push(`CODE:\n${path}\n\`\`\`\n${content}\n\`\`\``);
-            }
-            break;
-        case "None":
-            instructions.push("You don't have access to any files in the workspace. Ask user to copy and paste the code in the chat.");
-            break;
-        default:
-            break;
-    }
+    instructions.push("Please refer the relative files in context to user query.");
+    instructions.push(getFilesPromptMessage(files));
     // Selected code
     const selectedCode = getSelectedCode().slice(0, constant_1.SELECTED_CODE_MAX_LENGTH);
     if (selectedCode) {
@@ -22747,6 +22727,33 @@ function getOpenApi() {
     return new openai_1.OpenAIApi(configuration);
 }
 exports.getOpenApi = getOpenApi;
+function getFiles(filePaths) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const files = {};
+        yield Promise.all(filePaths.map((filePath) => __awaiter(this, void 0, void 0, function* () {
+            const url = vscode.Uri.file(filePath);
+            const file = yield vscode.workspace.openTextDocument(url);
+            files[file.fileName] = file.getText();
+        })));
+        return files;
+    });
+}
+exports.getFiles = getFiles;
+function cosineSimilarity(arr1, arr2) {
+    var dotProduct = 0;
+    var mA = 0;
+    var mB = 0;
+    for (var i = 0; i < arr1.length; i++) {
+        dotProduct += arr1[i] * arr2[i];
+        mA += arr1[i] * arr1[i];
+        mB += arr2[i] * arr2[i];
+    }
+    mA = Math.sqrt(mA);
+    mB = Math.sqrt(mB);
+    var similarity = dotProduct / (mA * mB);
+    return similarity;
+}
+exports.cosineSimilarity = cosineSimilarity;
 
 
 /***/ }),
@@ -22900,18 +22907,14 @@ class ChatGPTViewProvider {
         this._context = _context;
         this.files = {};
         this.disposables = [];
-        this.chatHistoryManager = new ChatHistoryManager_1.default();
-        this.chatHistoryManager.waitForInit().then(() => {
-            const history = this.chatHistoryManager.currentChat;
-            this.handleChatChange(history);
-        });
+        this.chatHistoryManager = new ChatHistoryManager_1.default(_context);
         this.disposables.push(vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)), vscode.commands.registerCommand("autopilot.chatHistory", () => this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))), vscode.commands.registerCommand("autopilot.clearAll", () => this.chatHistoryManager.clearHistory()));
     }
     handleChatChange(chatHistory) {
         if (this.webviewView) {
             this.webviewView.webview.postMessage({
-                type: "chatHistory",
-                data: chatHistory,
+                type: "set_history",
+                history: chatHistory.history,
             });
         }
     }
@@ -22932,8 +22935,12 @@ class ChatGPTViewProvider {
         webviewView.webview.onDidReceiveMessage((data) => {
             switch (data.type) {
                 case "onMountChat": {
-                    webViewLoadedResolve();
                     this.readVscodeFiles();
+                    this.chatHistoryManager.waitForInit().then(() => {
+                        const history = this.chatHistoryManager.currentChat;
+                        this.handleChatChange(history);
+                    });
+                    webViewLoadedResolve();
                     break;
                 }
                 case "ask_question":
@@ -22970,7 +22977,7 @@ class ChatGPTViewProvider {
         };
         const { files, chatHistoryManager } = this;
         const history = chatHistoryManager.currentChat.history;
-        (0, api_1.askQuestionWithPartialAnswers)(question, history, files, onPartialAnswer).then((ans) => {
+        (0, api_1.askQuestionWithPartialAnswers)(question, history, onPartialAnswer).then((ans) => {
             this.chatHistoryManager.addAnswer(ans);
             webviewView.webview.postMessage({
                 type: "partial_answer_done",
@@ -23006,55 +23013,6 @@ class ChatGPTViewProvider {
 			<script nonce='${nonce}' src='${scriptUri}'></script>
 		</html>
 	`;
-    }
-    createFile(fileName, fileContent) {
-        const fileUri = vscode.Uri.parse(fileName);
-        (0, utils_1.createFileIfNotExists)(fileUri, fileContent);
-    }
-    insertTextHelper(code) {
-        const chat = this.chatHistoryManager.getMessages().find((chat) => chat.content.includes(code));
-        if (!chat) {
-            return;
-        }
-    }
-    insertText(filepath, line, col, text) {
-        const document = vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath.endsWith(filepath));
-        const fileUri = document === null || document === void 0 ? void 0 : document.uri;
-        if (fileUri) {
-            vscode.workspace.openTextDocument(fileUri).then((document) => {
-                const edit = new vscode.WorkspaceEdit();
-                edit.insert(fileUri, new vscode.Position(line, col), text);
-                return vscode.workspace.applyEdit(edit);
-            });
-        }
-    }
-    openFile(filepath) {
-        const fileUri = vscode.Uri.parse(filepath);
-        vscode.workspace.openTextDocument(fileUri).then((document) => {
-            vscode.window.showTextDocument(document);
-        });
-    }
-    deleteFile(filepath) {
-        const fileUri = vscode.Uri.parse(filepath);
-        vscode.workspace.openTextDocument(fileUri).then((document) => {
-            vscode.workspace.fs.delete(fileUri);
-        });
-    }
-    replaceText(filepath, line, col, text) {
-        const fileUri = vscode.Uri.parse(filepath);
-        vscode.workspace.openTextDocument(fileUri).then((document) => {
-            const edit = new vscode.WorkspaceEdit();
-            edit.replace(fileUri, new vscode.Range(line, col, line, col + text.length), text);
-            return vscode.workspace.applyEdit(edit);
-        });
-    }
-    deleteText(filepath, line, col, text) {
-        const fileUri = vscode.Uri.parse(filepath);
-        vscode.workspace.openTextDocument(fileUri).then((document) => {
-            const edit = new vscode.WorkspaceEdit();
-            edit.delete(fileUri, new vscode.Range(line, col, line, col + text.length));
-            return vscode.workspace.applyEdit(edit);
-        });
     }
     dispose() {
         this.disposables.forEach((d) => d.dispose());
@@ -23111,7 +23069,8 @@ class ChatHistory {
 }
 exports.ChatHistory = ChatHistory;
 class ChatHistoryManager {
-    constructor() {
+    constructor(context) {
+        this.context = context;
         this._history = [];
         this._historyMap = {};
         this.currentChatId = null;
@@ -23235,22 +23194,12 @@ class ChatHistoryManager {
     }
     save() {
         return __awaiter(this, void 0, void 0, function* () {
-            const chatHistoryData = JSON.stringify(this._history);
-            return vscode.workspace.fs.writeFile(this.chatHistoryFileUri, new TextEncoder().encode(chatHistoryData));
+            yield this.context.workspaceState.update("autopilot.chatHistory", this._history);
         });
     }
     load() {
         return __awaiter(this, void 0, void 0, function* () {
-            const chatHistoryData = yield vscode.workspace.fs.readFile(this.chatHistoryFileUri);
-            const textData = new TextDecoder().decode(chatHistoryData);
-            console.log(textData);
-            try {
-                this._history = JSON.parse(textData);
-            }
-            catch (error) {
-                this._history = [];
-                console.error(error);
-            }
+            this._history = this.context.workspaceState.get("autopilot.chatHistory") || [];
             this._history.forEach((chatHistory) => {
                 this._historyMap[chatHistory.chatId] = chatHistory;
             });
@@ -23279,8 +23228,6 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.IndexingProvider = void 0;
 const api_1 = __webpack_require__(6);
 const vscode = __webpack_require__(1);
-//@ts-expect-error
-const compute_cosine_similarity_1 = __webpack_require__(Object(function webpackMissingModule() { var e = new Error("Cannot find module 'compute-cosine-similarity'"); e.code = 'MODULE_NOT_FOUND'; throw e; }()));
 const lodash_1 = __webpack_require__(5);
 const utils_1 = __webpack_require__(48);
 const constant_1 = __webpack_require__(3);
@@ -23315,12 +23262,14 @@ class IndexingProvider {
         });
     }
     createIndexing() {
+        console.log("started indexing");
         const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
         statusBar.text = "$(search) indexing";
         statusBar.tooltip = "Autopilot Indexing files";
         statusBar.show();
         this.disposables.push(statusBar);
         (0, utils_1.readFiles)(this.context.extensionUri.fsPath).then((files) => {
+            console.log(files);
             this.createEmbeddings(files)
                 .then((index) => {
                 statusBar.hide();
@@ -23343,13 +23292,11 @@ class IndexingProvider {
     createEmbeddings(files) {
         return __awaiter(this, void 0, void 0, function* () {
             let embeddings = this.getEmbeddings();
-            if (embeddings) {
-                return embeddings;
-            }
-            embeddings = {};
             yield Promise.all(Object.entries(files).map(([filename, content]) => __awaiter(this, void 0, void 0, function* () {
-                const embedding = yield (0, api_1.createEmbedding)(filename, content);
-                embeddings[filename] = embedding;
+                if (!embeddings[filename]) {
+                    const embedding = yield (0, api_1.createEmbedding)(filename, content);
+                    embeddings[filename] = embedding;
+                }
             })));
             yield this.setEmbeddings(embeddings);
             return embeddings;
@@ -23378,9 +23325,11 @@ class IndexingProvider {
             }
             const questionEmbedding = yield (0, api_1.createEmbedding)(question);
             const similarities = {};
+            console.time("Calculating similarities");
             Object.entries(embeddings).forEach(([filename, embedding]) => {
-                similarities[filename] = (0, compute_cosine_similarity_1.default)(questionEmbedding, embedding);
+                similarities[filename] = (0, utils_1.cosineSimilarity)(questionEmbedding, embedding);
             });
+            console.timeEnd("Calculating similarities");
             const sortedFilenames = Object.entries(similarities)
                 .sort(([, a], [, b]) => b - a)
                 .map(([filename]) => filename)

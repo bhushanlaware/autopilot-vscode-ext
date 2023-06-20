@@ -19,7 +19,7 @@ export default class ChatHistoryManager {
   private isInitiated = false;
   private saveDebounced = () => {};
 
-  constructor() {
+  constructor(private readonly context: vscode.ExtensionContext) {
     this.saveDebounced = debounce(() => this.save(), 1000);
     this.init();
   }
@@ -152,20 +152,11 @@ export default class ChatHistoryManager {
   }
 
   private async save() {
-    const chatHistoryData = JSON.stringify(this._history);
-    return vscode.workspace.fs.writeFile(this.chatHistoryFileUri, new TextEncoder().encode(chatHistoryData));
+    await this.context.workspaceState.update("autopilot.chatHistory", this._history);
   }
 
   private async load() {
-    const chatHistoryData = await vscode.workspace.fs.readFile(this.chatHistoryFileUri);
-    const textData = new TextDecoder().decode(chatHistoryData);
-    console.log(textData);
-    try {
-      this._history = JSON.parse(textData);
-    } catch (error) {
-      this._history = [];
-      console.error(error);
-    }
+    this._history = this.context.workspaceState.get<ChatHistory[]>("autopilot.chatHistory") || [];
     this._history.forEach((chatHistory) => {
       this._historyMap[chatHistory.chatId] = chatHistory;
     });

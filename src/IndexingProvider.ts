@@ -1,10 +1,8 @@
 import { createEmbedding } from "./api";
 import * as vscode from "vscode";
-//@ts-expect-error
-import similarity from "compute-cosine-similarity";
 import { Files, IEmbedding } from "./types";
 import { debounce } from "lodash";
-import { readFiles } from "./utils";
+import { readFiles, cosineSimilarity } from "./utils";
 import { TOP_INDEX } from "./constant";
 
 export class IndexingProvider implements vscode.Disposable {
@@ -45,6 +43,7 @@ export class IndexingProvider implements vscode.Disposable {
   }
 
   private createIndexing() {
+    console.log("started indexing");
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
     statusBar.text = "$(search) indexing";
     statusBar.tooltip = "Autopilot Indexing files";
@@ -52,6 +51,7 @@ export class IndexingProvider implements vscode.Disposable {
     this.disposables.push(statusBar);
 
     readFiles(this.context.extensionUri.fsPath).then((files) => {
+      console.log(files);
       this.createEmbeddings(files)
         .then((index) => {
           statusBar.hide();
@@ -73,15 +73,12 @@ export class IndexingProvider implements vscode.Disposable {
 
   private async createEmbeddings(files: Files) {
     let embeddings = this.getEmbeddings();
-    if (embeddings) {
-      return embeddings;
-    }
-
-    embeddings = {};
     await Promise.all(
       Object.entries(files).map(async ([filename, content]) => {
-        const embedding = await createEmbedding(filename, content);
-        embeddings[filename] = embedding;
+        if (!embeddings[filename]) {
+          const embedding = await createEmbedding(filename, content);
+          embeddings[filename] = embedding;
+        }
       })
     );
 
@@ -118,9 +115,11 @@ export class IndexingProvider implements vscode.Disposable {
     const questionEmbedding = await createEmbedding(question);
     const similarities: { [filename: string]: number } = {};
 
+    console.time("Calculating similarities");
     Object.entries(embeddings).forEach(([filename, embedding]) => {
-      similarities[filename] = similarity(questionEmbedding, embedding);
+      similarities[filename] = cosineSimilarity(questionEmbedding, embedding);
     });
+    console.timeEnd("Calculating similarities");
 
     const sortedFilenames = Object.entries(similarities)
       .sort(([, a], [, b]) => b - a)

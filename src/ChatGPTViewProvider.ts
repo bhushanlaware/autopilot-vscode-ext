@@ -11,11 +11,7 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
   private chatHistoryManager: ChatHistoryManager;
 
   constructor(private readonly _context: vscode.ExtensionContext) {
-    this.chatHistoryManager = new ChatHistoryManager();
-    this.chatHistoryManager.waitForInit().then(() => {
-      const history = this.chatHistoryManager.currentChat;
-      this.handleChatChange(history);
-    });
+    this.chatHistoryManager = new ChatHistoryManager(_context);
 
     this.disposables.push(
       vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)),
@@ -29,8 +25,8 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
   private handleChatChange(chatHistory: ChatHistory) {
     if (this.webviewView) {
       this.webviewView.webview.postMessage({
-        type: "chatHistory",
-        data: chatHistory,
+        type: "set_history",
+        history: chatHistory.history,
       });
     }
   }
@@ -57,8 +53,13 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage((data) => {
       switch (data.type) {
         case "onMountChat": {
-          webViewLoadedResolve();
           this.readVscodeFiles();
+
+          this.chatHistoryManager.waitForInit().then(() => {
+            const history = this.chatHistoryManager.currentChat;
+            this.handleChatChange(history);
+          });
+          webViewLoadedResolve();
           break;
         }
         case "ask_question":
@@ -104,7 +105,7 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
     const { files, chatHistoryManager } = this;
     const history = chatHistoryManager.currentChat.history;
 
-    askQuestionWithPartialAnswers(question, history, files, onPartialAnswer).then((ans) => {
+    askQuestionWithPartialAnswers(question, history, onPartialAnswer).then((ans) => {
       this.chatHistoryManager.addAnswer(ans);
       webviewView.webview.postMessage({
         type: "partial_answer_done",
@@ -144,62 +145,6 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
 			<script nonce='${nonce}' src='${scriptUri}'></script>
 		</html>
 	`;
-  }
-
-  private createFile(fileName: string, fileContent: string) {
-    const fileUri = vscode.Uri.parse(fileName);
-    createFileIfNotExists(fileUri, fileContent);
-  }
-
-  insertTextHelper(code: string) {
-    const chat = this.chatHistoryManager.getMessages().find((chat) => chat.content.includes(code));
-    if (!chat) {
-      return;
-    }
-  }
-  private insertText(filepath: string, line: number, col: number, text: string) {
-    const document = vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath.endsWith(filepath));
-
-    const fileUri = document?.uri;
-    if (fileUri) {
-      vscode.workspace.openTextDocument(fileUri).then((document) => {
-        const edit = new vscode.WorkspaceEdit();
-        edit.insert(fileUri, new vscode.Position(line, col), text);
-        return vscode.workspace.applyEdit(edit);
-      });
-    }
-  }
-
-  private openFile(filepath: string) {
-    const fileUri = vscode.Uri.parse(filepath);
-    vscode.workspace.openTextDocument(fileUri).then((document) => {
-      vscode.window.showTextDocument(document);
-    });
-  }
-
-  private deleteFile(filepath: string) {
-    const fileUri = vscode.Uri.parse(filepath);
-    vscode.workspace.openTextDocument(fileUri).then((document) => {
-      vscode.workspace.fs.delete(fileUri);
-    });
-  }
-
-  private replaceText(filepath: string, line: number, col: number, text: string) {
-    const fileUri = vscode.Uri.parse(filepath);
-    vscode.workspace.openTextDocument(fileUri).then((document) => {
-      const edit = new vscode.WorkspaceEdit();
-      edit.replace(fileUri, new vscode.Range(line, col, line, col + text.length), text);
-      return vscode.workspace.applyEdit(edit);
-    });
-  }
-
-  private deleteText(filepath: string, line: number, col: number, text: string) {
-    const fileUri = vscode.Uri.parse(filepath);
-    vscode.workspace.openTextDocument(fileUri).then((document) => {
-      const edit = new vscode.WorkspaceEdit();
-      edit.delete(fileUri, new vscode.Range(line, col, line, col + text.length));
-      return vscode.workspace.applyEdit(edit);
-    });
   }
 
   dispose() {
