@@ -214,19 +214,22 @@ class AutoCompleteProvider {
         // Register completion provider
         const disposableCompletionProvider = vscode.languages.registerInlineCompletionItemProvider("*", {
             provideInlineCompletionItems: (document, position, context, cancellationToken) => __awaiter(this, void 0, void 0, function* () {
-                const startLine = Math.max(0, position.line - constant_1.MAX_PREVIOUS_LINE_FOR_PROMPT);
-                const endLine = position.line - 1;
-                let previousCodeBlock = "";
-                if (position.line === 0) {
-                    previousCodeBlock = `${document.fileName}\n\n`;
-                }
-                else {
+                let promptCode = [];
+                // Add file name at top
+                promptCode.push(`//FileName:: ${document.fileName}`);
+                //  Add previous lines
+                if (position.line > 0) {
+                    const startLine = Math.max(0, position.line - constant_1.MAX_PREVIOUS_LINE_FOR_PROMPT);
+                    const endLine = position.line - 1;
                     const promptSelection = new vscode.Range(startLine, 0, endLine, 1000);
-                    previousCodeBlock = document.getText(promptSelection);
+                    promptCode.push(document.getText(promptSelection));
                 }
+                // Add current line till cursor position
                 const currentLineSelectionTillCursor = new vscode.Range(position.line, 0, position.line, position.character);
                 const currentLineContentTillCursor = document.getText(currentLineSelectionTillCursor);
-                const prompt = previousCodeBlock + currentLineContentTillCursor;
+                promptCode.push(currentLineContentTillCursor);
+                const prompt = promptCode.join("\n");
+                // Find stop
                 const currentLineSelectionAfterCursor = new vscode.Range(position.line, position.character, position.line, 1000);
                 const currentLineContentAfterCursor = document.getText(currentLineSelectionAfterCursor);
                 let stop = currentLineContentAfterCursor;
