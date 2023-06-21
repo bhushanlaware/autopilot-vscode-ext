@@ -17628,18 +17628,24 @@ function getCodeReplCompletions(prompt, stop, cancellationToken) {
             model: "replit",
             stop_sequence: stop,
         };
-        const url = "http://internal-ml-internal-hgpt-private-547292184.us-east-1.elb.amazonaws.com/code";
-        const response = yield fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            signal: abortController.signal,
-            body: JSON.stringify(body),
-        });
-        const data = yield response.json();
-        const choice = data.generated_code || "";
-        return [choice];
+        try {
+            const url = "http://internal-ml-internal-hgpt-private-547292184.us-east-1.elb.amazonaws.com/completions/code";
+            const response = yield fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                signal: abortController.signal,
+                body: JSON.stringify(body),
+            });
+            const data = yield response.json();
+            const choice = data.generated_code || "";
+            return [choice];
+        }
+        catch (err) {
+            console.log("error", err);
+            return [];
+        }
     });
 }
 exports.getCodeReplCompletions = getCodeReplCompletions;

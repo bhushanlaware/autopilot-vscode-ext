@@ -150,20 +150,24 @@ export async function getCodeReplCompletions(prompt: string, stop: string, cance
     model: "replit",
     stop_sequence: stop,
   };
+  try {
+    const url = "http://internal-ml-internal-hgpt-private-547292184.us-east-1.elb.amazonaws.com/completions/code";
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      signal: abortController.signal,
+      body: JSON.stringify(body),
+    });
 
-  const url = "http://internal-ml-internal-hgpt-private-547292184.us-east-1.elb.amazonaws.com/code";
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    signal: abortController.signal,
-    body: JSON.stringify(body),
-  });
-
-  const data = await response.json();
-  const choice = data.generated_code || "";
-  return [choice];
+    const data = await response.json();
+    const choice = data.generated_code || "";
+    return [choice];
+  } catch (err) {
+    console.log("error", err);
+    return [];
+  }
 }
 
 export async function getChatTitle(chatContext: string): Promise<string> {
