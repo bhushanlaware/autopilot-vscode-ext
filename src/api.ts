@@ -138,6 +138,34 @@ export async function getCodeCompletions(prompt: string, stop: string, cancellat
   }
 }
 
+export async function getCodeReplCompletions(prompt: string, stop: string, cancellationToken: vscode.CancellationToken): Promise<string[]> {
+  const abortController = new AbortController();
+  cancellationToken.onCancellationRequested(() => {
+    abortController.abort();
+  });
+
+  const body = {
+    code: prompt,
+    max_token_length: 500,
+    model: "replit",
+    stop_sequence: stop,
+  };
+
+  const url = "http://ml-internal-hgpt-lbn-2044663679.us-east-1.elb.amazonaws.com/completions/code";
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    signal: abortController.signal,
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json();
+  const choice = data.generated_code || "";
+  return [choice];
+}
+
 export async function getChatTitle(chatContext: string): Promise<string> {
   const prompt = `Suggest me good title for this CHAT::"""${chatContext}"""\n TITLE::`;
   const res = await getOpenApi().createCompletion({

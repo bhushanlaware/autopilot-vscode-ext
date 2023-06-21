@@ -1,6 +1,6 @@
 import { debounce } from "lodash";
 import * as vscode from "vscode";
-import { getCodeCompletions } from "./api";
+import { getCodeCompletions, getCodeReplCompletions } from "./api";
 import { MAX_PREVIOUS_LINE_FOR_PROMPT } from "./constant";
 
 export class AutoCompleteProvider implements vscode.Disposable {
@@ -47,7 +47,7 @@ export class AutoCompleteProvider implements vscode.Disposable {
           this.showStatusBar("ideal");
         });
 
-        const suggestions = this.cache[prompt] || (await getCodeCompletions(prompt, stop, cancellationToken));
+        const suggestions = this.cache[prompt] || (await getCodeReplCompletions(prompt, stop, cancellationToken));
 
         this.cache[prompt] = suggestions;
 

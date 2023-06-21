@@ -233,7 +233,7 @@ class AutoCompleteProvider {
                     console.log("cancelled");
                     this.showStatusBar("ideal");
                 });
-                const suggestions = this.cache[prompt] || (yield (0, api_1.getCodeCompletions)(prompt, stop, cancellationToken));
+                const suggestions = this.cache[prompt] || (yield (0, api_1.getCodeReplCompletions)(prompt, stop, cancellationToken));
                 this.cache[prompt] = suggestions;
                 this.showStatusBar("ideal");
                 return suggestions.map((suggestion) => {
@@ -17500,7 +17500,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createEmbedding = exports.getChatTitle = exports.getCodeCompletions = exports.askQuestionWithPartialAnswers = exports.cancelGPTRequest = void 0;
+exports.createEmbedding = exports.getChatTitle = exports.getCodeReplCompletions = exports.getCodeCompletions = exports.askQuestionWithPartialAnswers = exports.cancelGPTRequest = void 0;
 const vscode = __webpack_require__(1);
 // @ts-ignore
 const encoder_1 = __webpack_require__(7);
@@ -17616,6 +17616,33 @@ function getCodeCompletions(prompt, stop, cancellationToken) {
     });
 }
 exports.getCodeCompletions = getCodeCompletions;
+function getCodeReplCompletions(prompt, stop, cancellationToken) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const abortController = new AbortController();
+        cancellationToken.onCancellationRequested(() => {
+            abortController.abort();
+        });
+        const body = {
+            code: prompt,
+            max_token_length: 500,
+            model: "replit",
+            stop_sequence: stop,
+        };
+        const url = "http://ml-internal-hgpt-lbn-2044663679.us-east-1.elb.amazonaws.com/completions/code";
+        const response = yield fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            signal: abortController.signal,
+            body: JSON.stringify(body),
+        });
+        const data = yield response.json();
+        const choice = data.generated_code || "";
+        return [choice];
+    });
+}
+exports.getCodeReplCompletions = getCodeReplCompletions;
 function getChatTitle(chatContext) {
     var _a;
     return __awaiter(this, void 0, void 0, function* () {
