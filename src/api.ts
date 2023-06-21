@@ -15,7 +15,7 @@ import {
   modelMaxTokens,
   openaiBaseURL,
 } from "./utils";
-import { MSG_WINDOW_SIZE } from "./constant";
+import { IS_ALWAYS_COMPLETIONS_ONE_LINE, MSG_WINDOW_SIZE } from "./constant";
 
 let abortController: AbortController | null = null;
 export function cancelGPTRequest() {

@@ -132,8 +132,8 @@ exports.ConfigProvider = ConfigProvider;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.CHAT_CONTEXT = exports.COMPLETION_DEFAULT_CONFIGURATION = exports.CHAT_DEFAULT_CONFIGURATION = exports.CONFIGURATION_KEYS = exports.MSG_WINDOW_SIZE = exports.EMBEDDING_DEBOUNCE_TIMER = exports.CHUNK_SIZE = exports.TOP_INDEX = exports.CHAT_HISTORY_FILE_NAME = exports.VIEW_RANGE_MAX_LINES = exports.SELECTED_CODE_MAX_LENGTH = exports.MAX_ALLOWED_LINE = exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = exports.MAX_PREVIOUS_LINE_FOR_PROMPT = void 0;
-exports.MAX_PREVIOUS_LINE_FOR_PROMPT = 50;
+exports.CHAT_CONTEXT = exports.COMPLETION_DEFAULT_CONFIGURATION = exports.CHAT_DEFAULT_CONFIGURATION = exports.CONFIGURATION_KEYS = exports.IS_ALWAYS_COMPLETIONS_ONE_LINE = exports.MSG_WINDOW_SIZE = exports.EMBEDDING_DEBOUNCE_TIMER = exports.CHUNK_SIZE = exports.TOP_INDEX = exports.CHAT_HISTORY_FILE_NAME = exports.VIEW_RANGE_MAX_LINES = exports.SELECTED_CODE_MAX_LENGTH = exports.MAX_ALLOWED_LINE = exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = exports.MAX_PREVIOUS_LINE_FOR_PROMPT = void 0;
+exports.MAX_PREVIOUS_LINE_FOR_PROMPT = 10;
 exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = 3;
 exports.MAX_ALLOWED_LINE = 50;
 exports.SELECTED_CODE_MAX_LENGTH = 1000;
@@ -143,6 +143,7 @@ exports.TOP_INDEX = 5;
 exports.CHUNK_SIZE = 2500;
 exports.EMBEDDING_DEBOUNCE_TIMER = 5000;
 exports.MSG_WINDOW_SIZE = 5;
+exports.IS_ALWAYS_COMPLETIONS_ONE_LINE = true;
 exports.CONFIGURATION_KEYS = {
     name: "autopilot",
     autopilot: {
@@ -213,21 +214,31 @@ class AutoCompleteProvider {
         // Register completion provider
         const disposableCompletionProvider = vscode.languages.registerInlineCompletionItemProvider("*", {
             provideInlineCompletionItems: (document, position, context, cancellationToken) => __awaiter(this, void 0, void 0, function* () {
-                const promptSelection = new vscode.Range(Math.max(0, position.line - constant_1.MAX_PREVIOUS_LINE_FOR_PROMPT), 0, Math.max(0, position.line - 1), 1000);
-                const previousCodeBlock = document.getText(promptSelection);
-                const isCurrentLineEmpty = document.lineAt(position.line).text.trim().length === 0;
+                const startLine = Math.max(0, position.line - constant_1.MAX_PREVIOUS_LINE_FOR_PROMPT);
+                const endLine = position.line - 1;
+                let previousCodeBlock = "";
+                if (position.line === 0) {
+                    previousCodeBlock = `${document.fileName}\n\n`;
+                }
+                else {
+                    const promptSelection = new vscode.Range(startLine, 0, endLine, 1000);
+                    previousCodeBlock = document.getText(promptSelection);
+                }
                 const currentLineSelectionTillCursor = new vscode.Range(position.line, 0, position.line, position.character);
                 const currentLineContentTillCursor = document.getText(currentLineSelectionTillCursor);
+                const prompt = previousCodeBlock + currentLineContentTillCursor;
                 const currentLineSelectionAfterCursor = new vscode.Range(position.line, position.character, position.line, 1000);
                 const currentLineContentAfterCursor = document.getText(currentLineSelectionAfterCursor);
-                const isLastLine = position.line === document.lineCount - 1;
-                const nextLineContent = isLastLine ? "" : document.lineAt(position.line + 1).text;
-                const prompt = `${previousCodeBlock}\n${currentLineContentTillCursor}` || `// ${document.fileName}`;
-                const stop = isCurrentLineEmpty ? (nextLineContent ? `\n${nextLineContent}` : "\n\n") : currentLineContentAfterCursor || "\n";
-                console.log({ prompt, stop });
-                // show loading status barStyle = 'light-content'
-                // this.statusBarItem.show();
-                // this.statusBarItem.text = '$(sync~spin)';
+                let stop = currentLineContentAfterCursor;
+                if (currentLineContentAfterCursor.trim().length === 0 && position.line < document.lineCount - 1) {
+                    const nextLineSelection = new vscode.Range(position.line + 1, 0, position.line + 1, 1000);
+                    stop = `\n${document.getText(nextLineSelection)}`;
+                }
+                // If we don't find stop from content then lets set it ourself
+                if (!stop) {
+                    const isCurrentLineEmpty = currentLineContentTillCursor.trim().length === 0;
+                    stop = !isCurrentLineEmpty ? "\n" : "\n\n";
+                }
                 this.showStatusBar("thinking");
                 cancellationToken.onCancellationRequested(() => {
                     console.log("cancelled");
@@ -238,7 +249,7 @@ class AutoCompleteProvider {
                 this.showStatusBar("ideal");
                 return suggestions.map((suggestion) => {
                     const endPosition = new vscode.Position(position.line, position.character + suggestion.length);
-                    return new vscode.InlineCompletionItem(suggestion, new vscode.Range(position, endPosition));
+                    return new vscode.InlineCompletionItem(suggestion, new vscode.Range(position, position));
                 });
             }),
         });
@@ -22751,6 +22762,8 @@ function getOpenApi() {
     const configuration = new openai_1.Configuration({
         apiKey,
     });
+    // As we are using openai in frontend Uesr-Agent needs not to be set
+    delete configuration.baseOptions.headers["User-Agent"];
     return new openai_1.OpenAIApi(configuration);
 }
 exports.getOpenApi = getOpenApi;

@@ -239,6 +239,8 @@ export function getOpenApi() {
   const configuration = new Configuration({
     apiKey,
   });
+  // As we are using openai in frontend Uesr-Agent needs not to be set
+  delete configuration.baseOptions.headers["User-Agent"];
   return new OpenAIApi(configuration);
 }
 

@@ -17,30 +17,35 @@ export class AutoCompleteProvider implements vscode.Disposable {
     // Register completion provider
     const disposableCompletionProvider = vscode.languages.registerInlineCompletionItemProvider("*", {
       provideInlineCompletionItems: async (document, position, context, cancellationToken) => {
-        const promptSelection = new vscode.Range(
-          Math.max(0, position.line - MAX_PREVIOUS_LINE_FOR_PROMPT),
-          0,
-          Math.max(0, position.line - 1),
-          1000
-        );
-        const previousCodeBlock: string = document.getText(promptSelection);
-        const isCurrentLineEmpty = document.lineAt(position.line).text.trim().length === 0;
+        const startLine = Math.max(0, position.line - MAX_PREVIOUS_LINE_FOR_PROMPT);
+        const endLine = position.line - 1;
+        let previousCodeBlock = "";
+        if (position.line === 0) {
+          previousCodeBlock = `${document.fileName}\n\n`;
+        } else {
+          const promptSelection = new vscode.Range(startLine, 0, endLine, 1000);
+          previousCodeBlock = document.getText(promptSelection);
+        }
 
         const currentLineSelectionTillCursor = new vscode.Range(position.line, 0, position.line, position.character);
         const currentLineContentTillCursor = document.getText(currentLineSelectionTillCursor);
+        const prompt = previousCodeBlock + currentLineContentTillCursor;
+
         const currentLineSelectionAfterCursor = new vscode.Range(position.line, position.character, position.line, 1000);
         const currentLineContentAfterCursor = document.getText(currentLineSelectionAfterCursor);
-        const isLastLine = position.line === document.lineCount - 1;
-        const nextLineContent = isLastLine ? "" : document.lineAt(position.line + 1).text;
+        let stop = currentLineContentAfterCursor;
 
-        const prompt = `${previousCodeBlock}\n${currentLineContentTillCursor}` || `// ${document.fileName}`;
-        const stop = isCurrentLineEmpty ? (nextLineContent ? `\n${nextLineContent}` : "\n\n") : currentLineContentAfterCursor || "\n";
+        if (currentLineContentAfterCursor.trim().length === 0 && position.line < document.lineCount - 1) {
+          const nextLineSelection = new vscode.Range(position.line + 1, 0, position.line + 1, 1000);
+          stop = `\n${document.getText(nextLineSelection)}`;
+        }
 
-        console.log({ prompt, stop });
+        // If we don't find stop from content then lets set it ourself
+        if (!stop) {
+          const isCurrentLineEmpty = currentLineContentTillCursor.trim().length === 0;
+          stop = !isCurrentLineEmpty ? "\n" : "\n\n";
+        }
 
-        // show loading status barStyle = 'light-content'
-        // this.statusBarItem.show();
-        // this.statusBarItem.text = '$(sync~spin)';
         this.showStatusBar("thinking");
         cancellationToken.onCancellationRequested(() => {
           console.log("cancelled");
@@ -55,7 +60,7 @@ export class AutoCompleteProvider implements vscode.Disposable {
 
         return suggestions.map((suggestion) => {
           const endPosition = new vscode.Position(position.line, position.character + suggestion.length);
-          return new vscode.InlineCompletionItem(suggestion, new vscode.Range(position, endPosition));
+          return new vscode.InlineCompletionItem(suggestion, new vscode.Range(position, position));
         });
       },
     });
