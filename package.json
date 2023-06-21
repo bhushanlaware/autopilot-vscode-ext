@@ -18,6 +18,11 @@
     "menus": {
       "view/title": [
         {
+          "command": "autopilot.startNew",
+          "group": "autopilot.menu.basic",
+          "when": "view == autopilot.chat"
+        },
+        {
           "command": "autopilot.chatHistory",
           "group": "autopilot.menu.basic",
           "when": "view == autopilot.chat"
@@ -208,6 +213,7 @@
     "openai": "^3.3.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
+    "react-icons": "^4.9.0",
     "react-markdown": "^8.0.5",
     "react-syntax-highlighter": "^15.5.0",
     "rehype-raw": "^6.1.1",

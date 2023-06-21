@@ -6,9 +6,10 @@ export const MAX_ALLOWED_LINE = 50;
 export const SELECTED_CODE_MAX_LENGTH = 1000;
 export const VIEW_RANGE_MAX_LINES = 100;
 export const CHAT_HISTORY_FILE_NAME = "chat_history.json";
-export const TOP_INDEX = 2;
+export const TOP_INDEX = 5;
 export const CHUNK_SIZE = 2500;
 export const EMBEDDING_DEBOUNCE_TIMER = 5000;
+export const MSG_WINDOW_SIZE = 5;
 export const CONFIGURATION_KEYS = {
   name: "autopilot",
   autopilot: {

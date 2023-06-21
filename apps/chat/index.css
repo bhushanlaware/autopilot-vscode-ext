@@ -1,93 +1,93 @@
-.chat_list{
-	border-radius: 5px;
-	flex: 1;
-	overflow-y: auto;
+.chat_list {
+  border-radius: 5px;
+  flex: 1;
+  overflow-y: auto;
 }
 
-.post-markdown > *{
-	background: var(--vscode-activityBar-background);
-	margin-top: 10px;
-	padding: 15px;
-	border-radius: 12px;
+.post-markdown > * {
+  background: var(--vscode-activityBar-background);
+  margin-top: 10px;
+  padding: 15px;
+  border-radius: 12px;
 }
 
-.message{
-		border-radius: 5px;
-		padding: 10px;
-		margin-bottom: 10px;
-		font-size: 14px;
+.message {
+  border-radius: 5px;
+  padding: 10px;
+  margin-bottom: 10px;
+  font-size: 14px;
 }
 
-.message__author{
-		font-weight: bold;
-		font-size: 14px;
-		text-transform: capitalize;
+.message__author {
+  font-weight: bold;
+  font-size: 14px;
+  text-transform: capitalize;
 }
 
-.chat_body{
-	display: flex;
-	flex-direction: column;
-	height: 100%;
+.chat_body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
-.message__text > p{
-	padding: 5px;
-	border-radius: 5px;
-	margin-top: 5px;
-	margin-left: -5px;
+.message__text > p {
+  padding: 5px;
+  border-radius: 5px;
+  margin-top: 5px;
+  margin-left: -5px;
 }
 
-pre{
-	background: var(--vscode-menu-background);
-	overflow: auto;
+pre {
+  background: var(--vscode-menu-background);
+  overflow: auto;
 }
 
 .code-copy-btn {
-	color: #fff;
-	cursor: pointer;
-	font-size: 1.5em;
-	background: #2b2b2b;
-	position: absolute;
-	right: 10px;
-	top: 18px;
-	transition: all .3s ease-in-out;
+  color: #fff;
+  cursor: pointer;
+  font-size: 1.5em;
+  background: #2b2b2b;
+  position: absolute;
+  right: 10px;
+  top: 18px;
+  transition: all 0.3s ease-in-out;
 }
 
 .code-copy-btn:hover {
-	transform: scale(1.1);
-	opacity: 0.9;
+  transform: scale(1.1);
+  opacity: 0.9;
 }
 
 .icon-btn {
-	cursor: pointer;
-	background: none;
-	border: none;
+  cursor: pointer;
+  background: none;
+  border: none;
 }
 
-.message-pre{
-	position: relative;
-	padding: 0;
+.message-pre {
+  position: relative;
+  padding: 0;
 }
-.post-markdown > ol{
-	padding-left: 30px;
+.post-markdown > ol {
+  padding-left: 30px;
 }
 
-.message-pre > div{
-	margin: 0;
+.message-pre > div {
+  margin: 0;
 }
 
 .chat-controller {
-	align-items: center;
-	background-color: var(--vscode-activityBar-background);
-	border-radius: 10px;
-	box-shadow: 0 4px 6px rgba(0,0,0,.1);
-	display: flex;
-	justify-content: center;
-	padding: 20px;
-	margin:10px 20px 5px 10px;
+  align-items: center;
+  background-color: var(--vscode-activityBar-background);
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  margin: 10px 20px 5px 10px;
 }
 
-.chat-controller input {
+.chat-controller textarea {
   flex-grow: 1;
   padding: 10px;
   border: none;
@@ -96,14 +96,16 @@ pre{
   font-size: 14px;
   outline: none;
   margin-right: 10px;
-	background-color:var(--vscode-sideBar-background);
+  background-color: var(--vscode-sideBar-background);
+  overflow-y: hidden;
+  resize: none;
 }
 
 .chat-controller button {
   padding: 10px 20px;
   font-size: 14px;
   border: none;
-	width: auto;
+  width: auto;
   border-radius: 5px;
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -111,33 +113,57 @@ pre{
 }
 
 .primary {
-	background-color: #007bff;
-	color: #fff;
+  background-color: #007bff;
+  color: #fff;
 }
 
 .primary:hover {
-	background-color: #0069d9;
+  background-color: #0069d9;
 }
 
 .danger {
-	background-color: #dc3545;
-	color: #fff;
-
+  background-color: #dc3545;
+  color: #fff;
 }
 
 .danger:hover {
-	background-color: #bd2130;
+  background-color: #bd2130;
 }
 
 .warning {
-	background-color: #ffc107;
-	color: #212529;
+  background-color: #ffc107;
+  color: #212529;
 }
 
 .warning:hover {
-	background-color: #d39e00;
+  background-color: #d39e00;
 }
 
 .mr-2 {
-	margin-right: 10px;
+  margin-right: 10px;
+}
+
+textarea {
+  resize: none;
+}
+
+#icons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+#icons .icon {
+  width: 140px;
+  padding: 20px;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+#icons .icon .codicon {
+  font-size: 32px;
+  padding-bottom: 16px;
 }

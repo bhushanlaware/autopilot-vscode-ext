@@ -18,6 +18,10 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
       vscode.commands.registerCommand("autopilot.chatHistory", () =>
         this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))
       ),
+      vscode.commands.registerCommand("autopilot.startNew", () => {
+        this.chatHistoryManager.startNewChat();
+        this.handleChatChange({ chatId: "", title: "", history: [] });
+      }),
       vscode.commands.registerCommand("autopilot.clearHistory", () => {
         this.chatHistoryManager.clearHistory();
         this.handleChatChange({ chatId: "", title: "", history: [] });

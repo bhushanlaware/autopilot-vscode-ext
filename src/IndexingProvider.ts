@@ -9,6 +9,8 @@ import { ChatContext } from "./types";
 export class IndexingProvider implements vscode.Disposable {
   disposables: vscode.Disposable[] = [];
   pendingFileChangesToBeIndexed: Files = {};
+  statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
+  numberOfFilesLeftToIndex: number = 0;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     const debouncedUpdateIndex = debounce(this.updateIndexing.bind(this), EMBEDDING_DEBOUNCE_TIMER);
@@ -30,8 +32,13 @@ export class IndexingProvider implements vscode.Disposable {
 
     const getTopRelativeFileNamesCommands = vscode.commands.registerCommand("autopilot.getContext", this.getContext.bind(this));
 
+    // start indexing
     this.createIndexing();
-    this.disposables.push(fileChangeListener, getTopRelativeFileNamesCommands);
+
+    // status bar
+    this.statusBar.text = "$(search) indexing";
+    this.statusBar.tooltip = "Autopilot Indexing files";
+    this.disposables.push(fileChangeListener, getTopRelativeFileNamesCommands, this.statusBar);
   }
 
   get isEnabled(): boolean {
@@ -50,14 +57,6 @@ export class IndexingProvider implements vscode.Disposable {
       statusBar.dispose();
       this.pendingFileChangesToBeIndexed = {};
     });
-  }
-
-  private getStatusBar() {
-    const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
-    statusBar.text = "$(search) indexing";
-    statusBar.tooltip = "Autopilot Indexing files";
-    statusBar.show();
-    return statusBar;
   }
 
   private async createIndexing() {
@@ -103,7 +102,7 @@ export class IndexingProvider implements vscode.Disposable {
     if (!this.isEnabled) {
       return;
     }
-    const statusBar = this.getStatusBar();
+    this.statusBar.show();
     let embeddings = this.getEmbeddings();
     await Promise.all(
       Object.entries(files).map(async ([filename, content]) => {
@@ -122,7 +121,7 @@ export class IndexingProvider implements vscode.Disposable {
     );
 
     await this.setEmbeddings(embeddings);
-    statusBar.dispose();
+    this.statusBar.hide();
     return embeddings;
   }
 
@@ -156,7 +155,8 @@ export class IndexingProvider implements vscode.Disposable {
   }
 
   private async getContext(query: string): Promise<Files> {
-    if (!this.isEnabled) {
+    console.log("Query" + query);
+    if (!this.isEnabled || !query) {
       return {};
     }
     const relativeFileNamesWithChunks = await this.getTopRelativeFileNames(query);

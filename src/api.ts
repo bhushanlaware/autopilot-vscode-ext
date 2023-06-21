@@ -15,6 +15,7 @@ import {
   modelMaxTokens,
   openaiBaseURL,
 } from "./utils";
+import { MSG_WINDOW_SIZE } from "./constant";
 
 let abortController: AbortController | null = null;
 export function cancelGPTRequest() {
@@ -26,7 +27,7 @@ export function cancelGPTRequest() {
 export function askQuestionWithPartialAnswers(question: string, history: Chat[], onPartialAnswer: (_: string) => void): Promise<string> {
   return new Promise<string>(async (resolve, reject) => {
     const { temperature, model } = getChatConfig();
-    const relativeContext = (await vscode.commands.executeCommand("autopilot.getContext")) as Files;
+    const relativeContext = (await vscode.commands.executeCommand("autopilot.getContext", question)) as Files;
     const systemInstruction = getInstruction(relativeContext);
 
     let fullResponse = "";
@@ -42,7 +43,8 @@ export function askQuestionWithPartialAnswers(question: string, history: Chat[],
       content: question,
     };
 
-    const messages = [systemMessage, ...history, userMessage];
+    const lastNHistory = history.slice(history.length - MSG_WINDOW_SIZE);
+    const messages = [systemMessage, ...lastNHistory, userMessage];
     const maxTokens = modelMaxTokens[model];
 
     const totalTokens = messages.reduce((acc, message) => {

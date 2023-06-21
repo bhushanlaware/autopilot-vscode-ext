@@ -132,16 +132,17 @@ exports.ConfigProvider = ConfigProvider;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.CHAT_CONTEXT = exports.COMPLETION_DEFAULT_CONFIGURATION = exports.CHAT_DEFAULT_CONFIGURATION = exports.CONFIGURATION_KEYS = exports.EMBEDDING_DEBOUNCE_TIMER = exports.CHUNK_SIZE = exports.TOP_INDEX = exports.CHAT_HISTORY_FILE_NAME = exports.VIEW_RANGE_MAX_LINES = exports.SELECTED_CODE_MAX_LENGTH = exports.MAX_ALLOWED_LINE = exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = exports.MAX_PREVIOUS_LINE_FOR_PROMPT = void 0;
+exports.CHAT_CONTEXT = exports.COMPLETION_DEFAULT_CONFIGURATION = exports.CHAT_DEFAULT_CONFIGURATION = exports.CONFIGURATION_KEYS = exports.MSG_WINDOW_SIZE = exports.EMBEDDING_DEBOUNCE_TIMER = exports.CHUNK_SIZE = exports.TOP_INDEX = exports.CHAT_HISTORY_FILE_NAME = exports.VIEW_RANGE_MAX_LINES = exports.SELECTED_CODE_MAX_LENGTH = exports.MAX_ALLOWED_LINE = exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = exports.MAX_PREVIOUS_LINE_FOR_PROMPT = void 0;
 exports.MAX_PREVIOUS_LINE_FOR_PROMPT = 50;
 exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = 3;
 exports.MAX_ALLOWED_LINE = 50;
 exports.SELECTED_CODE_MAX_LENGTH = 1000;
 exports.VIEW_RANGE_MAX_LINES = 100;
 exports.CHAT_HISTORY_FILE_NAME = "chat_history.json";
-exports.TOP_INDEX = 2;
+exports.TOP_INDEX = 5;
 exports.CHUNK_SIZE = 2500;
 exports.EMBEDDING_DEBOUNCE_TIMER = 5000;
+exports.MSG_WINDOW_SIZE = 5;
 exports.CONFIGURATION_KEYS = {
     name: "autopilot",
     autopilot: {
@@ -17505,6 +17506,7 @@ const vscode = __webpack_require__(1);
 const encoder_1 = __webpack_require__(7);
 const openai_1 = __webpack_require__(10);
 const utils_1 = __webpack_require__(48);
+const constant_1 = __webpack_require__(3);
 let abortController = null;
 function cancelGPTRequest() {
     if (abortController) {
@@ -17515,7 +17517,7 @@ exports.cancelGPTRequest = cancelGPTRequest;
 function askQuestionWithPartialAnswers(question, history, onPartialAnswer) {
     return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
         const { temperature, model } = (0, utils_1.getChatConfig)();
-        const relativeContext = (yield vscode.commands.executeCommand("autopilot.getContext"));
+        const relativeContext = (yield vscode.commands.executeCommand("autopilot.getContext", question));
         const systemInstruction = (0, utils_1.getInstruction)(relativeContext);
         let fullResponse = "";
         abortController = new AbortController();
@@ -17527,7 +17529,8 @@ function askQuestionWithPartialAnswers(question, history, onPartialAnswer) {
             role: openai_1.ChatCompletionRequestMessageRoleEnum.User,
             content: question,
         };
-        const messages = [systemMessage, ...history, userMessage];
+        const lastNHistory = history.slice(history.length - constant_1.MSG_WINDOW_SIZE);
+        const messages = [systemMessage, ...lastNHistory, userMessage];
         const maxTokens = utils_1.modelMaxTokens[model];
         const totalTokens = messages.reduce((acc, message) => {
             return acc + (0, encoder_1.encode)(message.content).length;
@@ -22945,7 +22948,10 @@ class ChatGPTViewProvider {
         this.files = {};
         this.disposables = [];
         this.chatHistoryManager = new ChatHistoryManager_1.default(_context);
-        this.disposables.push(vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)), vscode.commands.registerCommand("autopilot.chatHistory", () => this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))), vscode.commands.registerCommand("autopilot.clearHistory", () => {
+        this.disposables.push(vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)), vscode.commands.registerCommand("autopilot.chatHistory", () => this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))), vscode.commands.registerCommand("autopilot.startNew", () => {
+            this.chatHistoryManager.startNewChat();
+            this.handleChatChange({ chatId: "", title: "", history: [] });
+        }), vscode.commands.registerCommand("autopilot.clearHistory", () => {
             this.chatHistoryManager.clearHistory();
             this.handleChatChange({ chatId: "", title: "", history: [] });
         }));
@@ -23277,6 +23283,8 @@ class IndexingProvider {
         this.context = context;
         this.disposables = [];
         this.pendingFileChangesToBeIndexed = {};
+        this.statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
+        this.numberOfFilesLeftToIndex = 0;
         const debouncedUpdateIndex = (0, lodash_1.debounce)(this.updateIndexing.bind(this), constant_1.EMBEDDING_DEBOUNCE_TIMER);
         const fileChangeListener = vscode.workspace.onDidChangeTextDocument((changes) => __awaiter(this, void 0, void 0, function* () {
             for (const change of changes.contentChanges) {
@@ -23293,8 +23301,12 @@ class IndexingProvider {
             yield this.createEmbeddings({ [fileName]: fileContent });
         }));
         const getTopRelativeFileNamesCommands = vscode.commands.registerCommand("autopilot.getContext", this.getContext.bind(this));
+        // start indexing
         this.createIndexing();
-        this.disposables.push(fileChangeListener, getTopRelativeFileNamesCommands);
+        // status bar
+        this.statusBar.text = "$(search) indexing";
+        this.statusBar.tooltip = "Autopilot Indexing files";
+        this.disposables.push(fileChangeListener, getTopRelativeFileNamesCommands, this.statusBar);
     }
     get isEnabled() {
         return vscode.workspace.getConfiguration("autopilot").get("enableFileIndexing");
@@ -23311,13 +23323,6 @@ class IndexingProvider {
             statusBar.dispose();
             this.pendingFileChangesToBeIndexed = {};
         });
-    }
-    getStatusBar() {
-        const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
-        statusBar.text = "$(search) indexing";
-        statusBar.tooltip = "Autopilot Indexing files";
-        statusBar.show();
-        return statusBar;
     }
     createIndexing() {
         var _a;
@@ -23365,7 +23370,7 @@ class IndexingProvider {
             if (!this.isEnabled) {
                 return;
             }
-            const statusBar = this.getStatusBar();
+            this.statusBar.show();
             let embeddings = this.getEmbeddings();
             yield Promise.all(Object.entries(files).map(([filename, content]) => __awaiter(this, void 0, void 0, function* () {
                 const chunks = (0, utils_1.readFileInChunks)(content, constant_1.CHUNK_SIZE);
@@ -23378,7 +23383,7 @@ class IndexingProvider {
                 })));
             })));
             yield this.setEmbeddings(embeddings);
-            statusBar.dispose();
+            this.statusBar.hide();
             return embeddings;
         });
     }
@@ -23409,7 +23414,8 @@ class IndexingProvider {
     }
     getContext(query) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!this.isEnabled) {
+            console.log("Query" + query);
+            if (!this.isEnabled || !query) {
                 return {};
             }
             const relativeFileNamesWithChunks = yield this.getTopRelativeFileNames(query);
