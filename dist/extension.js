@@ -20,8 +20,9 @@ const vscode = __webpack_require__(1);
 const ConfigProvider_1 = __webpack_require__(2);
 const AutoCompleteProvider_1 = __webpack_require__(4);
 const ChatGPTViewProvider_1 = __webpack_require__(50);
-const IndexingProvider_1 = __webpack_require__(52);
-const ChatHistoryManager_1 = __webpack_require__(51);
+const IndexingProvider_1 = __webpack_require__(51);
+const ChatHistoryManager_1 = __webpack_require__(52);
+const ChatHistoryTreeViewProvider_1 = __webpack_require__(53);
 function activate(context) {
     return __awaiter(this, void 0, void 0, function* () {
         const configProvider = new ConfigProvider_1.ConfigProvider();
@@ -32,12 +33,14 @@ function activate(context) {
             console.log(key);
             const autoCompleteProvider = new AutoCompleteProvider_1.AutoCompleteProvider(context);
             const chatGPTWebViewProvider = new ChatGPTViewProvider_1.ChatGPTViewProvider(context, chatHistoryManager);
+            const chatHistoryTreeViewProvider = new ChatHistoryTreeViewProvider_1.ChatHistoryTreeViewProvider(context, chatHistoryManager);
             const indexingProvider = new IndexingProvider_1.IndexingProvider(context);
             const chatGPTWebViewPanel = vscode.window.registerWebviewViewProvider("autopilot.chat", chatGPTWebViewProvider, {
                 webviewOptions: {
                     retainContextWhenHidden: true,
                 },
             });
+            vscode.window.registerTreeDataProvider("autopilot.chatList", chatHistoryTreeViewProvider);
             context.subscriptions.push(chatGPTWebViewPanel);
             context.subscriptions.push(autoCompleteProvider);
             context.subscriptions.push(indexingProvider);
@@ -22958,20 +22961,13 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ChatGPTViewProvider = void 0;
 const vscode = __webpack_require__(1);
 const api_1 = __webpack_require__(6);
-const utils_1 = __webpack_require__(48);
 class ChatGPTViewProvider {
     constructor(_context, chatHistoryManager) {
         this._context = _context;
         this.chatHistoryManager = chatHistoryManager;
-        this.files = {};
         this.disposables = [];
-        this.disposables.push(vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)), vscode.commands.registerCommand("autopilot.chatHistory", () => this.chatHistoryManager.quickPickChats(this.handleChatChange.bind(this))), vscode.commands.registerCommand("autopilot.startNew", () => {
-            this.chatHistoryManager.startNewChat();
-            this.handleChatChange({ chatId: "", title: "", history: [] });
-        }), vscode.commands.registerCommand("autopilot.clearHistory", () => {
-            this.chatHistoryManager.removeAllChats();
-            this.handleChatChange({ chatId: "", title: "", history: [] });
-        }), vscode.window.onDidChangeActiveColorTheme(this.updateUITheme.bind(this)));
+        this.disposables.push(vscode.commands.registerCommand("autopilot.askQuestion", this.handleAskQuestion.bind(this)), vscode.commands.registerCommand("autopilot.chatHistory", this.chatHistoryManager.quickPickChats.bind(this.chatHistoryManager)), vscode.commands.registerCommand("autopilot.startNew", this.chatHistoryManager.startNewChat.bind(this.chatHistoryManager)), vscode.commands.registerCommand("autopilot.clearHistory", this.chatHistoryManager.removeAllChats.bind(this.chatHistoryManager)), vscode.commands.registerCommand("autopilot.openChat", this.chatHistoryManager.openChat.bind(this.chatHistoryManager)), vscode.window.onDidChangeActiveColorTheme(this.updateUITheme.bind(this)));
+        this.chatHistoryManager.onChatChange(this.handleChatChange.bind(this));
     }
     handleChatChange(chatHistory) {
         if (this.webviewView) {
@@ -22981,12 +22977,7 @@ class ChatGPTViewProvider {
             });
         }
     }
-    readVscodeFiles() {
-        (0, utils_1.readFiles)(this._context.extensionUri.fsPath).then((files) => {
-            this.files = files;
-        });
-    }
-    resolveWebviewView(webviewView, context, token) {
+    resolveWebviewView(webviewView) {
         let webViewLoadedResolve = () => { };
         const webviewLoadedThenable = new Promise((resolve) => (webViewLoadedResolve = resolve));
         webviewView.webview.options = {
@@ -22998,11 +22989,7 @@ class ChatGPTViewProvider {
         webviewView.webview.onDidReceiveMessage((data) => {
             switch (data.type) {
                 case "onMountChat": {
-                    this.readVscodeFiles();
-                    this.chatHistoryManager.waitForInit().then(() => {
-                        const history = this.chatHistoryManager.currentChat;
-                        this.handleChatChange(history);
-                    });
+                    this.handleChatChange(this.chatHistoryManager.currentChat);
                     this.updateUITheme();
                     webViewLoadedResolve();
                     break;
@@ -23010,16 +22997,15 @@ class ChatGPTViewProvider {
                 case "ask_question":
                     this.handleAskQuestion(data.question);
                     break;
-                case "cancel_question":
+                case "cancelGPTRequest":
                     (0, api_1.cancelGPTRequest)();
                     break;
-                case "clear_chat":
+                case "startNewChat":
                     this.chatHistoryManager.startNewChat();
                     break;
             }
         });
-        const waitForHistoryMangerInit = this.chatHistoryManager.waitForInit();
-        return new Promise((resolve) => Promise.all([webviewLoadedThenable, waitForHistoryMangerInit]).then(() => resolve()));
+        return webviewLoadedThenable;
     }
     updateUITheme() {
         var _a, _b;
@@ -23039,7 +23025,7 @@ class ChatGPTViewProvider {
         }
     }
     handleAskQuestion(question) {
-        var _a;
+        var _a, _b;
         const webviewView = this.webviewView;
         if (!webviewView) {
             return;
@@ -23053,8 +23039,7 @@ class ChatGPTViewProvider {
                 partialAnswer,
             });
         };
-        const { chatHistoryManager } = this;
-        const history = chatHistoryManager.currentChat.history;
+        const history = ((_b = this.chatHistoryManager.currentChat) === null || _b === void 0 ? void 0 : _b.history) || [];
         (0, api_1.askQuestionWithPartialAnswers)(question, history, onPartialAnswer).then((ans) => {
             this.chatHistoryManager.addAnswer(ans);
             webviewView.webview.postMessage({
@@ -23111,155 +23096,6 @@ function getNonce() {
 
 /***/ }),
 /* 51 */
-/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
-
-"use strict";
-
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.Chat = exports.Message = void 0;
-const lodash_1 = __webpack_require__(5);
-const vscode = __webpack_require__(1);
-const api_1 = __webpack_require__(6);
-const utils_1 = __webpack_require__(48);
-class Message {
-    constructor(role, content) {
-        this.role = role;
-        this.content = content;
-    }
-}
-exports.Message = Message;
-class Chat {
-    constructor(chatId, title, history) {
-        this.chatId = chatId;
-        this.title = title;
-        this.history = history;
-    }
-}
-exports.Chat = Chat;
-class ChatsManager {
-    constructor(context) {
-        this.context = context;
-        this._chatList = [];
-        this.saveDebounced = () => { };
-        this.onChatListChangeEmitter = new vscode.EventEmitter();
-        this.onChatChangeEmitter = new vscode.EventEmitter();
-        this.saveDebounced = (0, lodash_1.debounce)(() => this.save(), 1000);
-        this._chatList = this.context.workspaceState.get("autopilot.chat") || [];
-    }
-    get onChatListChange() {
-        return this.onChatListChangeEmitter.event;
-    }
-    get onChatChange() {
-        return this.onChatChangeEmitter.event;
-    }
-    get chatId() {
-        return this.context.workspaceState.get("autopilot.chatId");
-    }
-    set chatId(id) {
-        this.context.workspaceState.update("autopilot.chatId", id);
-    }
-    get currentChat() {
-        return this._currentChat;
-    }
-    set currentChat(chat) {
-        this.chatId = chat.chatId;
-        this._currentChat = chat;
-        this.onChatChangeEmitter.fire(chat);
-    }
-    get chatList() {
-        return this._chatList;
-    }
-    quickPickChats() {
-        const pickItems = this.chatList.map((chat) => {
-            var _a;
-            const isCurrentChat = chat.chatId === ((_a = this.currentChat) === null || _a === void 0 ? void 0 : _a.chatId);
-            return {
-                label: chat.title,
-                chat,
-                description: isCurrentChat ? "Current Chat" : "",
-                picked: isCurrentChat,
-            };
-        });
-        vscode.window.showQuickPick(pickItems).then((item) => {
-            if (item) {
-                this.currentChat = item.chat;
-            }
-        });
-    }
-    removeAllChats() {
-        this._chatList = [];
-        this.saveDebounced();
-        this.startNewChat();
-    }
-    addMessage(msg) {
-        if (this.currentChat) {
-            this.currentChat.history.push(msg);
-            const currentIndex = this._chatList.findIndex((chat) => { var _a; return chat.chatId === ((_a = this.currentChat) === null || _a === void 0 ? void 0 : _a.chatId); });
-            this._chatList[currentIndex] = this.currentChat;
-            this.saveDebounced();
-        }
-    }
-    addQuestion(question) {
-        this.addMessage(new Message("user", question));
-    }
-    addAnswer(answer) {
-        var _a;
-        this.addMessage(new Message("assistant", answer));
-        // check if current title is 'New Chat' then update it using GPT
-        if (((_a = this.currentChat) === null || _a === void 0 ? void 0 : _a.title) === "New Chat") {
-            console.log("Updating title using GPT");
-            this.updateTitleUsingGPT(this.currentChat.chatId).then((title) => {
-                console.info(`Updated title to ${title}`);
-            });
-        }
-    }
-    startNewChat() {
-        this.currentChat = new Chat((0, utils_1.uuid)(), "New Chat", []);
-    }
-    getChatFromId(chatId) {
-        return this._chatList.find((chat) => chat.chatId === chatId);
-    }
-    deleteChat(chatId) {
-        this._chatList = this._chatList.filter((chat) => chat.chatId !== chatId);
-        this.saveDebounced();
-    }
-    updateTitleUsingGPT(chatId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const chat = this.getChatFromId(chatId);
-            if (!chat) {
-                return "";
-            }
-            const question = chat.history[chat.history.length - 1].content;
-            const answer = chat.history[chat.history.length - 2].content;
-            const context = `USER:${question}\nAI:${answer}`;
-            const title = yield (0, api_1.getChatTitle)(context);
-            const chatIndex = this._chatList.findIndex((x) => x.chatId === chatId);
-            this._chatList[chatIndex].title = title;
-            this.saveDebounced();
-            this.onChatListChangeEmitter.fire(this._chatList);
-            return title;
-        });
-    }
-    save() {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield this.context.workspaceState.update("autopilot.chat", this._chatList);
-        });
-    }
-}
-exports["default"] = ChatsManager;
-
-
-/***/ }),
-/* 52 */
 /***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
@@ -23442,6 +23278,216 @@ class IndexingProvider {
     }
 }
 exports.IndexingProvider = IndexingProvider;
+
+
+/***/ }),
+/* 52 */
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Chat = exports.Message = void 0;
+const lodash_1 = __webpack_require__(5);
+const vscode = __webpack_require__(1);
+const api_1 = __webpack_require__(6);
+const utils_1 = __webpack_require__(48);
+class Message {
+    constructor(role, content) {
+        this.role = role;
+        this.content = content;
+    }
+}
+exports.Message = Message;
+class Chat {
+    constructor(chatId, title, history) {
+        this.chatId = chatId;
+        this.title = title;
+        this.history = history;
+    }
+}
+exports.Chat = Chat;
+class ChatsManager {
+    constructor(context) {
+        this.context = context;
+        this.saveDebounced = () => { };
+        this.onChatRepoChangeEmitter = new vscode.EventEmitter();
+        this.onChatChangeEmitter = new vscode.EventEmitter();
+        this.saveDebounced = (0, lodash_1.debounce)(() => this.save(), 100);
+        this._chatRepo = this.context.workspaceState.get("autopilot.chatRepo") || {};
+        const savedChatId = this.context.workspaceState.get("autopilot.chatId");
+        console.log("savedChatId", savedChatId);
+        console.log("chatRepo", this._chatRepo);
+        if (savedChatId && this._chatRepo[savedChatId]) {
+            this._currentChat = this._chatRepo[savedChatId];
+        }
+        else {
+            const chatId = (0, utils_1.uuid)();
+            this.setChatId(chatId);
+            this._currentChat = new Chat(chatId, "New Chat", []);
+            this._chatRepo[chatId] = this._currentChat;
+            this.saveDebounced();
+        }
+    }
+    get onChatRepoChange() {
+        return this.onChatRepoChangeEmitter.event;
+    }
+    get onChatChange() {
+        return this.onChatChangeEmitter.event;
+    }
+    setChatId(chatId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this.context.workspaceState.update("autopilot.chatId", chatId);
+        });
+    }
+    get currentChat() {
+        return this._currentChat;
+    }
+    set currentChat(chat) {
+        this.setChatId(chat.chatId);
+        this._currentChat = chat;
+        this.onChatChangeEmitter.fire(chat);
+    }
+    get chatList() {
+        return Object.keys(this._chatRepo).map((key) => this._chatRepo[key]);
+    }
+    quickPickChats() {
+        const pickItems = this.chatList.map((chat) => {
+            const isCurrentChat = chat.chatId === this.currentChat.chatId;
+            return {
+                label: chat.title,
+                chat,
+                description: isCurrentChat ? "Current Chat" : "",
+                picked: isCurrentChat,
+            };
+        });
+        vscode.window.showQuickPick(pickItems).then((item) => {
+            if (item) {
+                this.currentChat = item.chat;
+            }
+        });
+    }
+    removeAllChats() {
+        this._chatRepo = {};
+        this.saveDebounced();
+        this.startNewChat();
+    }
+    addMessage(msg) {
+        const chatId = this.currentChat.chatId;
+        this._chatRepo[chatId].history.push(msg);
+    }
+    addQuestion(question) {
+        this.addMessage(new Message("user", question));
+    }
+    addAnswer(answer) {
+        var _a;
+        this.addMessage(new Message("assistant", answer));
+        // check if current title is 'New Chat' then update it using GPT
+        if (((_a = this.currentChat) === null || _a === void 0 ? void 0 : _a.title) === "New Chat") {
+            console.log("Updating title using GPT");
+            this.updateTitleUsingGPT(this.currentChat.chatId).then((title) => {
+                console.info(`Updated title to ${title}`);
+            });
+        }
+    }
+    startNewChat() {
+        const newChatId = (0, utils_1.uuid)();
+        this.currentChat = new Chat(newChatId, "New Chat", []);
+        this._chatRepo[newChatId] = this.currentChat;
+        this.saveDebounced();
+    }
+    deleteChat(chatId) {
+        delete this._chatRepo[chatId];
+        this.saveDebounced();
+    }
+    openChat(chatId) {
+        this.currentChat = this._chatRepo[chatId];
+    }
+    updateTitleUsingGPT(chatId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const history = this._chatRepo[chatId].history;
+            const question = history[history.length - 1].content;
+            const answer = history[history.length - 2].content;
+            const context = `USER:${question}\nAI:${answer}`;
+            const title = yield (0, api_1.getChatTitle)(context);
+            this._chatRepo[chatId].title = title;
+            this.saveDebounced();
+            return title;
+        });
+    }
+    save() {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.context.workspaceState.update("autopilot.chatRepo", this._chatRepo);
+            this.onChatRepoChangeEmitter.fire(this._chatRepo);
+        });
+    }
+}
+exports["default"] = ChatsManager;
+
+
+/***/ }),
+/* 53 */
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ChatHistoryTreeViewProvider = void 0;
+const vscode = __webpack_require__(1);
+class ChatHistoryTreeViewProvider {
+    constructor(context, chatManager) {
+        this.context = context;
+        this.chatManager = chatManager;
+        this._onDidChangeTreeData = new vscode.EventEmitter();
+        this.onDidChangeTreeData = this._onDidChangeTreeData.event;
+        this.chatManager.onChatRepoChange((e) => {
+            console.log(e);
+            this._onDidChangeTreeData.fire(null);
+        });
+        this.context.subscriptions.push(vscode.commands.registerCommand("autopilot.deleteChat", (chat) => __awaiter(this, void 0, void 0, function* () {
+            const confirm = yield vscode.window.showWarningMessage(`Are you sure you want to delete "${chat.title}"?`, { modal: true }, "Yes");
+            if (confirm === "Yes") {
+                this.chatManager.deleteChat(chat.chatId);
+            }
+        })));
+    }
+    getTreeItem(element) {
+        return {
+            label: element.title,
+            command: {
+                command: "autopilot.openChat",
+                arguments: [element.chatId],
+                title: "Open",
+            },
+            collapsibleState: vscode.TreeItemCollapsibleState.None,
+            contextValue: "autopilot.chat",
+            iconPath: vscode.ThemeIcon.File,
+            tooltip: element.title,
+        };
+    }
+    getChildren(element) {
+        return Promise.resolve(this.chatManager.chatList);
+    }
+}
+exports.ChatHistoryTreeViewProvider = ChatHistoryTreeViewProvider;
 
 
 /***/ })

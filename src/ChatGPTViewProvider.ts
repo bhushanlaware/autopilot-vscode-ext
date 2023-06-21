@@ -1,30 +1,21 @@
 import * as vscode from "vscode";
 import ChatsManager, { Chat } from "./ChatHistoryManager";
 import { askQuestionWithPartialAnswers, cancelGPTRequest } from "./api";
-import { Files } from "./types";
-import { readFiles } from "./utils";
 
 export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
-  private files: Files = {};
   private disposables: vscode.Disposable[] = [];
   private webviewView: vscode.WebviewView | undefined;
 
   constructor(private readonly _context: vscode.ExtensionContext, private readonly chatHistoryManager: ChatsManager) {
     this.disposables.push(
-      vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)),
-      vscode.commands.registerCommand("autopilot.chatHistory", () =>
-        this.chatHistoryManager.quickPickChats(this.handleChatChange.bind(this))
-      ),
-      vscode.commands.registerCommand("autopilot.startNew", () => {
-        this.chatHistoryManager.startNewChat();
-        this.handleChatChange({ chatId: "", title: "", history: [] });
-      }),
-      vscode.commands.registerCommand("autopilot.clearHistory", () => {
-        this.chatHistoryManager.removeAllChats();
-        this.handleChatChange({ chatId: "", title: "", history: [] });
-      }),
+      vscode.commands.registerCommand("autopilot.askQuestion", this.handleAskQuestion.bind(this)),
+      vscode.commands.registerCommand("autopilot.chatHistory", this.chatHistoryManager.quickPickChats.bind(this.chatHistoryManager)),
+      vscode.commands.registerCommand("autopilot.startNew", this.chatHistoryManager.startNewChat.bind(this.chatHistoryManager)),
+      vscode.commands.registerCommand("autopilot.clearHistory", this.chatHistoryManager.removeAllChats.bind(this.chatHistoryManager)),
+      vscode.commands.registerCommand("autopilot.openChat", this.chatHistoryManager.openChat.bind(this.chatHistoryManager)),
       vscode.window.onDidChangeActiveColorTheme(this.updateUITheme.bind(this))
     );
+    this.chatHistoryManager.onChatChange(this.handleChatChange.bind(this));
   }
 
   private handleChatChange(chatHistory: Chat) {
@@ -36,13 +27,7 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private readVscodeFiles() {
-    readFiles(this._context.extensionUri.fsPath).then((files) => {
-      this.files = files;
-    });
-  }
-
-  public resolveWebviewView(webviewView: vscode.WebviewView, context: vscode.WebviewViewResolveContext, token: vscode.CancellationToken) {
+  public resolveWebviewView(webviewView: vscode.WebviewView) {
     let webViewLoadedResolve: () => void = () => {};
     const webviewLoadedThenable = new Promise<void>((resolve) => (webViewLoadedResolve = resolve));
 
@@ -58,12 +43,7 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage((data) => {
       switch (data.type) {
         case "onMountChat": {
-          this.readVscodeFiles();
-
-          this.chatHistoryManager.waitForInit().then(() => {
-            const history = this.chatHistoryManager.currentChat;
-            this.handleChatChange(history);
-          });
+          this.handleChatChange(this.chatHistoryManager.currentChat);
           this.updateUITheme();
           webViewLoadedResolve();
           break;
@@ -72,19 +52,17 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
           this.handleAskQuestion(data.question);
           break;
 
-        case "cancel_question":
+        case "cancelGPTRequest":
           cancelGPTRequest();
           break;
 
-        case "clear_chat":
+        case "startNewChat":
           this.chatHistoryManager.startNewChat();
           break;
       }
     });
 
-    const waitForHistoryMangerInit = this.chatHistoryManager.waitForInit();
-
-    return new Promise<void>((resolve) => Promise.all([webviewLoadedThenable, waitForHistoryMangerInit]).then(() => resolve()));
+    return webviewLoadedThenable;
   }
 
   private updateUITheme() {
@@ -121,8 +99,7 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
       });
     };
 
-    const { chatHistoryManager } = this;
-    const history = chatHistoryManager.currentChat.history;
+    const history = this.chatHistoryManager.currentChat?.history || [];
 
     askQuestionWithPartialAnswers(question, history, onPartialAnswer).then((ans) => {
       this.chatHistoryManager.addAnswer(ans);

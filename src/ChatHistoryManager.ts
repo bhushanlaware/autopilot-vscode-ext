@@ -11,51 +11,66 @@ export class Chat {
   constructor(public chatId: string, public title: string, public history: Message[]) {}
 }
 
+export interface ChatRepository {
+  [chatId: string]: Chat;
+}
+
 export default class ChatsManager {
-  private _chatList: Chat[] = [];
-  private _currentChat?: Chat;
+  private _chatRepo: ChatRepository;
+  private _currentChat: Chat;
   private saveDebounced = () => {};
-  private onChatListChangeEmitter = new vscode.EventEmitter<Chat[]>();
+  private onChatRepoChangeEmitter = new vscode.EventEmitter<ChatRepository>();
   private onChatChangeEmitter = new vscode.EventEmitter<Chat>();
 
   constructor(private readonly context: vscode.ExtensionContext) {
-    this.saveDebounced = debounce(() => this.save(), 1000);
-    this._chatList = this.context.workspaceState.get<Chat[]>("autopilot.chat") || [];
+    this.saveDebounced = debounce(() => this.save(), 100);
+
+    this._chatRepo = this.context.workspaceState.get<ChatRepository>("autopilot.chatRepo") || {};
+    const savedChatId = this.context.workspaceState.get<string>("autopilot.chatId");
+
+    console.log("savedChatId", savedChatId);
+    console.log("chatRepo", this._chatRepo);
+
+    if (savedChatId && this._chatRepo[savedChatId]) {
+      this._currentChat = this._chatRepo[savedChatId];
+    } else {
+      const chatId = uuid();
+      this.setChatId(chatId);
+      this._currentChat = new Chat(chatId, "New Chat", []);
+      this._chatRepo[chatId] = this._currentChat;
+      this.saveDebounced();
+    }
   }
 
-  public get onChatListChange(): vscode.Event<Chat[]> {
-    return this.onChatListChangeEmitter.event;
+  public get onChatRepoChange(): vscode.Event<ChatRepository> {
+    return this.onChatRepoChangeEmitter.event;
   }
 
   public get onChatChange(): vscode.Event<Chat> {
     return this.onChatChangeEmitter.event;
   }
 
-  private get chatId(): string | undefined {
-    return this.context.workspaceState.get<string>("autopilot.chatId");
+  private async setChatId(chatId: string) {
+    return this.context.workspaceState.update("autopilot.chatId", chatId);
   }
 
-  private set chatId(id: string) {
-    this.context.workspaceState.update("autopilot.chatId", id);
-  }
-
-  get currentChat(): Chat | undefined {
+  get currentChat(): Chat {
     return this._currentChat;
   }
 
   set currentChat(chat: Chat) {
-    this.chatId = chat.chatId;
+    this.setChatId(chat.chatId);
     this._currentChat = chat;
     this.onChatChangeEmitter.fire(chat);
   }
 
-  get chatList() {
-    return this._chatList;
+  get chatList(): Chat[] {
+    return Object.keys(this._chatRepo).map((key) => this._chatRepo[key]);
   }
 
-  quickPickChats() {
+  public quickPickChats() {
     const pickItems = this.chatList.map((chat) => {
-      const isCurrentChat = chat.chatId === this.currentChat?.chatId;
+      const isCurrentChat = chat.chatId === this.currentChat.chatId;
       return {
         label: chat.title,
         chat,
@@ -72,18 +87,14 @@ export default class ChatsManager {
   }
 
   removeAllChats() {
-    this._chatList = [];
+    this._chatRepo = {};
     this.saveDebounced();
     this.startNewChat();
   }
 
   private addMessage(msg: Message) {
-    if (this.currentChat) {
-      this.currentChat.history.push(msg);
-      const currentIndex = this._chatList.findIndex((chat) => chat.chatId === this.currentChat?.chatId);
-      this._chatList[currentIndex] = this.currentChat;
-      this.saveDebounced();
-    }
+    const chatId = this.currentChat.chatId;
+    this._chatRepo[chatId].history.push(msg);
   }
 
   addQuestion(question: string) {
@@ -103,36 +114,38 @@ export default class ChatsManager {
   }
 
   startNewChat() {
-    this.currentChat = new Chat(uuid(), "New Chat", []);
-  }
-
-  private getChatFromId(chatId: string): Chat | undefined {
-    return this._chatList.find((chat) => chat.chatId === chatId);
+    const newChatId = uuid();
+    this.currentChat = new Chat(newChatId, "New Chat", []);
+    this._chatRepo[newChatId] = this.currentChat;
+    this.saveDebounced();
   }
 
   public deleteChat(chatId: string) {
-    this._chatList = this._chatList.filter((chat) => chat.chatId !== chatId);
+    delete this._chatRepo[chatId];
     this.saveDebounced();
   }
 
+  public openChat(chatId: string) {
+    this.currentChat = this._chatRepo[chatId];
+  }
+
   private async updateTitleUsingGPT(chatId: string): Promise<string> {
-    const chat = this.getChatFromId(chatId);
-    if (!chat) {
-      return "";
-    }
-    const question = chat.history[chat.history.length - 1].content;
-    const answer = chat.history[chat.history.length - 2].content;
+    const history = this._chatRepo[chatId].history;
+
+    const question = history[history.length - 1].content;
+    const answer = history[history.length - 2].content;
+
     const context = `USER:${question}\nAI:${answer}`;
+
     const title = await getChatTitle(context);
 
-    const chatIndex = this._chatList.findIndex((x) => x.chatId === chatId);
-    this._chatList[chatIndex].title = title;
+    this._chatRepo[chatId].title = title;
     this.saveDebounced();
-    this.onChatListChangeEmitter.fire(this._chatList);
     return title;
   }
 
   private async save() {
-    await this.context.workspaceState.update("autopilot.chat", this._chatList);
+    await this.context.workspaceState.update("autopilot.chatRepo", this._chatRepo);
+    this.onChatRepoChangeEmitter.fire(this._chatRepo);
   }
 }

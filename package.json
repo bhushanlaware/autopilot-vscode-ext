@@ -50,6 +50,14 @@
       {
         "command": "autopilot.clearHistory",
         "title": "Delete All Chats"
+      },
+      {
+        "command": "autopilot.openChat",
+        "title": "Open Chat"
+      },
+      {
+        "command": "autopilot.deleteChat",
+        "title": "Delete Chat"
       }
     ],
     "viewsContainers": {
@@ -67,6 +75,11 @@
           "type": "webview",
           "id": "autopilot.chat",
           "name": "AI Chat"
+        },
+        {
+          "type": "tree",
+          "id": "autopilot.chatList",
+          "name": "Chat List"
         }
       ]
     },
