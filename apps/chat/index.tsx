@@ -76,11 +76,11 @@ function ChatApp() {
 
   function clearChat() {
     setHistory([]);
-    vscode.postMessage({ type: "clear_chat" });
+    vscode.postMessage({ type: "startNewChat" });
   }
 
   function handleCancel() {
-    vscode.postMessage({ type: "cancel_question", ans: prePartialAnswer });
+    vscode.postMessage({ type: "cancelGPTRequest", ans: prePartialAnswer });
     setHistory([...history, { role: "assistant", content: prePartialAnswer }]);
     setPrevPartialAnswer("");
   }
