@@ -86,10 +86,19 @@ function ChatApp() {
   }
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-      handleClick();
+    if (e.key === "Enter") {
+      console.log('Hi')
+      if (e.shiftKey) {
+        return;
+      } else {
+        // Prevent default behavior of Enter key (new line)
+        e.preventDefault();
+        handleClick();
+      }
     }
   };
+
+
   const renderStopButton = () => (
     <button className="danger" onClick={handleCancel}>
       <FaStop />
