@@ -151,7 +151,7 @@ export async function getCodeReplCompletions(prompt: string, stop: string, cance
     stop_sequence: stop,
   };
 
-  const url = "http://ml-internal-hgpt-lbn-2044663679.us-east-1.elb.amazonaws.com/completions/code";
+  const url = "http://internal-ml-internal-hgpt-private-547292184.us-east-1.elb.amazonaws.com/code";
   const response = await fetch(url, {
     method: "POST",
     headers: {

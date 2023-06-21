@@ -17628,7 +17628,7 @@ function getCodeReplCompletions(prompt, stop, cancellationToken) {
             model: "replit",
             stop_sequence: stop,
         };
-        const url = "http://ml-internal-hgpt-lbn-2044663679.us-east-1.elb.amazonaws.com/completions/code";
+        const url = "http://internal-ml-internal-hgpt-private-547292184.us-east-1.elb.amazonaws.com/code";
         const response = yield fetch(url, {
             method: "POST",
             headers: {
