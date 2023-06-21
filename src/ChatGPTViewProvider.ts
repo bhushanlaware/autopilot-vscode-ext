@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import ChatHistoryManager, { ChatHistory } from "./ChatHistoryManager";
+import ChatsManager, { Chat } from "./ChatHistoryManager";
 import { askQuestionWithPartialAnswers, cancelGPTRequest } from "./api";
 import { Files } from "./types";
 import { readFiles } from "./utils";
@@ -8,28 +8,26 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
   private files: Files = {};
   private disposables: vscode.Disposable[] = [];
   private webviewView: vscode.WebviewView | undefined;
-  private chatHistoryManager: ChatHistoryManager;
 
-  constructor(private readonly _context: vscode.ExtensionContext) {
-    this.chatHistoryManager = new ChatHistoryManager(_context);
+  constructor(private readonly _context: vscode.ExtensionContext, private readonly chatHistoryManager: ChatsManager) {
     this.disposables.push(
       vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)),
       vscode.commands.registerCommand("autopilot.chatHistory", () =>
-        this.chatHistoryManager.showAndChangeHistory(this.handleChatChange.bind(this))
+        this.chatHistoryManager.quickPickChats(this.handleChatChange.bind(this))
       ),
       vscode.commands.registerCommand("autopilot.startNew", () => {
         this.chatHistoryManager.startNewChat();
         this.handleChatChange({ chatId: "", title: "", history: [] });
       }),
       vscode.commands.registerCommand("autopilot.clearHistory", () => {
-        this.chatHistoryManager.clearHistory();
+        this.chatHistoryManager.removeAllChats();
         this.handleChatChange({ chatId: "", title: "", history: [] });
       }),
       vscode.window.onDidChangeActiveColorTheme(this.updateUITheme.bind(this))
     );
   }
 
-  private handleChatChange(chatHistory: ChatHistory) {
+  private handleChatChange(chatHistory: Chat) {
     if (this.webviewView) {
       this.webviewView.webview.postMessage({
         type: "set_history",

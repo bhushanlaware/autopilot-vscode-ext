@@ -1,4 +1,4 @@
-import { Chat } from "./ChatHistoryManager";
+import { Message } from "./ChatHistoryManager";
 
 export type Files = { [key: string]: string };
 export type Role = "user" | "assistant" | "system";
@@ -20,7 +20,7 @@ export interface ChatRequest {
   model: ChatModel;
   context: ChatContext;
   temperature: number;
-  messages: Chat[];
+  messages: Message[];
   apiKey: string;
 }
 export interface ChatConfig {

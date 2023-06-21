@@ -3,15 +3,18 @@ import { ConfigProvider } from "./ConfigProvider";
 import { AutoCompleteProvider } from "./AutoCompleteProvider";
 import { ChatGPTViewProvider } from "./ChatGPTViewProvider";
 import { IndexingProvider } from "./IndexingProvider";
+import ChatsManager from "./ChatHistoryManager";
 
 export async function activate(context: vscode.ExtensionContext) {
   const configProvider = new ConfigProvider();
+  const chatHistoryManager = new ChatsManager(context);
+
   configProvider
     .getOpenApiKey()
     .then((key) => {
       console.log(key);
       const autoCompleteProvider = new AutoCompleteProvider(context);
-      const chatGPTWebViewProvider = new ChatGPTViewProvider(context);
+      const chatGPTWebViewProvider = new ChatGPTViewProvider(context, chatHistoryManager);
       const indexingProvider = new IndexingProvider(context);
 
       const chatGPTWebViewPanel = vscode.window.registerWebviewViewProvider("autopilot.chat", chatGPTWebViewProvider, {

@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 // @ts-ignore
 import { encode } from "./encoder";
 import { ChatCompletionRequestMessageRoleEnum } from "openai";
-import { Chat } from "./ChatHistoryManager";
+import { Message } from "./ChatHistoryManager";
 import { Files } from "./types";
 import {
   fetchSSE,
@@ -24,7 +24,7 @@ export function cancelGPTRequest() {
   }
 }
 
-export function askQuestionWithPartialAnswers(question: string, history: Chat[], onPartialAnswer: (_: string) => void): Promise<string> {
+export function askQuestionWithPartialAnswers(question: string, history: Message[], onPartialAnswer: (_: string) => void): Promise<string> {
   return new Promise<string>(async (resolve, reject) => {
     const { temperature, model } = getChatConfig();
     const relativeContext = (await vscode.commands.executeCommand("autopilot.getContext", question)) as Files;
