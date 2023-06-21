@@ -19,7 +19,6 @@ export class AutoCompleteProvider implements vscode.Disposable {
       provideInlineCompletionItems: async (document, position, context, cancellationToken) => {
         let promptCode = [];
         // Add file name at top
-        promptCode.push(`//FileName:: ${document.fileName}`);
 
         //  Add previous lines
         if (position.line > 0) {
@@ -27,6 +26,8 @@ export class AutoCompleteProvider implements vscode.Disposable {
           const endLine = position.line - 1;
           const promptSelection = new vscode.Range(startLine, 0, endLine, 1000);
           promptCode.push(document.getText(promptSelection));
+        } else {
+          promptCode.push(`//FileName:: ${document.fileName}`);
         }
 
         // Add current line till cursor position
@@ -35,21 +36,20 @@ export class AutoCompleteProvider implements vscode.Disposable {
         promptCode.push(currentLineContentTillCursor);
 
         const prompt = promptCode.join("\n");
+        const isCurrentLineEmpty = currentLineContentTillCursor.trim().length === 0;
 
         // Find stop
         const currentLineSelectionAfterCursor = new vscode.Range(position.line, position.character, position.line, 1000);
         const currentLineContentAfterCursor = document.getText(currentLineSelectionAfterCursor);
         let stop = currentLineContentAfterCursor;
 
-        if (currentLineContentAfterCursor.trim().length === 0 && position.line < document.lineCount - 1) {
+        if (isCurrentLineEmpty && currentLineContentAfterCursor.trim().length === 0 && position.line < document.lineCount - 1) {
           const nextLineSelection = new vscode.Range(position.line + 1, 0, position.line + 1, 1000);
           stop = `\n${document.getText(nextLineSelection)}`;
         }
 
-        // If we don't find stop from content then lets set it ourself
         if (!stop) {
-          const isCurrentLineEmpty = currentLineContentTillCursor.trim().length === 0;
-          stop = !isCurrentLineEmpty ? "\n" : "\n\n";
+          stop = isCurrentLineEmpty ? "\n\n" : "\n";
         }
 
         this.showStatusBar("thinking");
@@ -77,8 +77,7 @@ export class AutoCompleteProvider implements vscode.Disposable {
   private debouncedHandleSelectionChange = debounce(this.handleSelectionChange, 1000);
 
   private handleSelectionChange(event: vscode.TextEditorSelectionChangeEvent) {
-    if (event.kind === vscode.TextEditorSelectionChangeKind.Keyboard || event.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
-      console.log("should inkove");
+    if (event.kind === vscode.TextEditorSelectionChangeKind.Keyboard) {
       this.showSuggestions();
     }
   }
