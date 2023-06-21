@@ -4,8 +4,7 @@ import MessageBody from "./MessageBody";
 
 import "../common/App.css";
 import "./index.css";
-// import { ClearIcon } from "./icons";
-import { FaPlus as NewChatIcon, FaPaperPlane, FaStop } from 'react-icons/fa';
+import { FaPlus as NewChatIcon, FaPaperPlane, FaStop, FaUser as UserIcon, FaRobot as BotIcon } from 'react-icons/fa';
 
 import AutoResizeTextarea from "./AutoResizeTextarea";
 import { ThemeProvider, ThemeType } from "./hook/useTheme";
@@ -51,6 +50,10 @@ function ChatApp() {
         case "set_history":
           setHistory(message.history);
           break;
+        case 'update-theme':
+          console.log(message);
+          setTheme(message.theme);
+          break;
         default:
           break;
       }
@@ -88,13 +91,13 @@ function ChatApp() {
     }
   };
   const renderStopButton = () => (
-    <button className="danger mr-2" onClick={handleCancel}>
+    <button className="danger" onClick={handleCancel}>
       <FaStop />
     </button>
   );
 
   const renderSendButton = () => (
-    <button className="primary mr-2" onClick={handleClick}>
+    <button className="primary" onClick={handleClick}>
       <FaPaperPlane />
     </button>
   );
@@ -149,7 +152,11 @@ function Chat({ message }: ChatProps) {
   return (
     <div className="chat">
       <div className="message">
-        <div className="message__author">{message.role}</div>
+        <div className="message__author">{
+          message.role === "assistant" ?
+            <> <BotIcon /> Assistant </> :
+            <><UserIcon /> You </>}
+        </div>
         <div className="message__text">
           <MessageBody onCopy={handleCopy} content={message.content} />
         </div>

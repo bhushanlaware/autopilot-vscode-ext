@@ -12,7 +12,6 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
 
   constructor(private readonly _context: vscode.ExtensionContext) {
     this.chatHistoryManager = new ChatHistoryManager(_context);
-
     this.disposables.push(
       vscode.commands.registerCommand("autopilot.askQuestion", (q) => this.handleAskQuestion(q)),
       vscode.commands.registerCommand("autopilot.chatHistory", () =>
@@ -25,7 +24,8 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
       vscode.commands.registerCommand("autopilot.clearHistory", () => {
         this.chatHistoryManager.clearHistory();
         this.handleChatChange({ chatId: "", title: "", history: [] });
-      })
+      }),
+      vscode.window.onDidChangeActiveColorTheme(this.updateUITheme.bind(this))
     );
   }
 
@@ -66,6 +66,7 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
             const history = this.chatHistoryManager.currentChat;
             this.handleChatChange(history);
           });
+          this.updateUITheme();
           webViewLoadedResolve();
           break;
         }
@@ -88,6 +89,22 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
     return new Promise<void>((resolve) => Promise.all([webviewLoadedThenable, waitForHistoryMangerInit]).then(() => resolve()));
   }
 
+  private updateUITheme() {
+    const activeColorTheme = vscode.window.activeColorTheme;
+    console.log(activeColorTheme);
+    if (activeColorTheme.kind === vscode.ColorThemeKind.Dark) {
+      this.webviewView?.webview.postMessage({
+        type: "update-theme",
+        theme: "dark",
+      });
+    } else {
+      this.webviewView?.webview.postMessage({
+        type: "update-theme",
+        theme: "light",
+      });
+    }
+  }
+
   private handleAskQuestion(question: string) {
     const webviewView = this.webviewView;
     if (!webviewView) {
@@ -106,7 +123,7 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
       });
     };
 
-    const { files, chatHistoryManager } = this;
+    const { chatHistoryManager } = this;
     const history = chatHistoryManager.currentChat.history;
 
     askQuestionWithPartialAnswers(question, history, onPartialAnswer).then((ans) => {
