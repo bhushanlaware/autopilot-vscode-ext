@@ -1,22 +1,21 @@
 import { debounce } from "lodash";
 import * as vscode from "vscode";
 import { getCodeCompletions, getCodeReplCompletions } from "./api";
-import { MAX_PREVIOUS_LINE_FOR_PROMPT } from "./constant";
+import { AUTOCOMPLETION_DEBOUNCE_TIMER, MAX_PREVIOUS_LINE_FOR_PROMPT } from "./constant";
 
 export class AutoCompleteProvider implements vscode.Disposable {
   disposables: vscode.Disposable[] = [];
   timeout: NodeJS.Timeout | null = null;
   statusBarItem: vscode.StatusBarItem;
   cache: { [key: string]: string[] } = {};
+  suggestionTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly context: vscode.ExtensionContext) {
-    // Status bar item
     this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     this.showStatusBar("ideal");
-
-    // Register completion provider
     const disposableCompletionProvider = vscode.languages.registerInlineCompletionItemProvider("*", {
       provideInlineCompletionItems: async (document, position, context, cancellationToken) => {
+        console.log("invoked");
         const promptSelection = new vscode.Range(
           Math.max(0, position.line - MAX_PREVIOUS_LINE_FOR_PROMPT),
           0,
@@ -38,16 +37,13 @@ export class AutoCompleteProvider implements vscode.Disposable {
 
         console.log({ prompt, stop });
 
-        // show loading status barStyle = 'light-content'
-        // this.statusBarItem.show();
-        // this.statusBarItem.text = '$(sync~spin)';
         this.showStatusBar("thinking");
         cancellationToken.onCancellationRequested(() => {
           console.log("cancelled");
           this.showStatusBar("ideal");
         });
 
-        const suggestions = this.cache[prompt] || (await getCodeReplCompletions(prompt, stop, cancellationToken));
+        const suggestions = this.cache[prompt] || (await this.getDebouncedCodeCompletion(prompt, stop, cancellationToken));
 
         this.cache[prompt] = suggestions;
 
@@ -60,20 +56,18 @@ export class AutoCompleteProvider implements vscode.Disposable {
       },
     });
 
-    const disposableEditorSelection = vscode.window.onDidChangeTextEditorSelection(this.debouncedHandleSelectionChange.bind(this));
-    this.disposables.push(disposableCompletionProvider, disposableEditorSelection);
-  }
-  private debouncedHandleSelectionChange = debounce(this.handleSelectionChange, 1000);
-
-  private handleSelectionChange(event: vscode.TextEditorSelectionChangeEvent) {
-    if (event.kind === vscode.TextEditorSelectionChangeKind.Keyboard || event.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
-      console.log("should inkove");
-      this.showSuggestions();
-    }
+    this.disposables.push(disposableCompletionProvider);
   }
 
-  private showSuggestions() {
-    vscode.commands.executeCommand("editor.action.inlineSuggest.trigger");
+  private getDebouncedCodeCompletion(prompt: string, stop: string, cancellationToken: vscode.CancellationToken): Promise<string[]> {
+    return new Promise((resolve, reject) => {
+      if (this.suggestionTimer) {
+        clearTimeout(this.suggestionTimer);
+      }
+      this.suggestionTimer = setTimeout(() => {
+        getCodeReplCompletions(prompt, stop, cancellationToken).then(resolve, reject);
+      }, AUTOCOMPLETION_DEBOUNCE_TIMER);
+    });
   }
 
   private showStatusBar(state: "thinking" | "ideal") {

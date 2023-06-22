@@ -132,8 +132,8 @@ exports.ConfigProvider = ConfigProvider;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.CHAT_CONTEXT = exports.COMPLETION_DEFAULT_CONFIGURATION = exports.CHAT_DEFAULT_CONFIGURATION = exports.CONFIGURATION_KEYS = exports.MSG_WINDOW_SIZE = exports.EMBEDDING_DEBOUNCE_TIMER = exports.CHUNK_SIZE = exports.TOP_INDEX = exports.CHAT_HISTORY_FILE_NAME = exports.VIEW_RANGE_MAX_LINES = exports.SELECTED_CODE_MAX_LENGTH = exports.MAX_ALLOWED_LINE = exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = exports.MAX_PREVIOUS_LINE_FOR_PROMPT = void 0;
-exports.MAX_PREVIOUS_LINE_FOR_PROMPT = 50;
+exports.CHAT_CONTEXT = exports.COMPLETION_DEFAULT_CONFIGURATION = exports.CHAT_DEFAULT_CONFIGURATION = exports.CONFIGURATION_KEYS = exports.AUTOCOMPLETION_DEBOUNCE_TIMER = exports.MSG_WINDOW_SIZE = exports.EMBEDDING_DEBOUNCE_TIMER = exports.CHUNK_SIZE = exports.TOP_INDEX = exports.CHAT_HISTORY_FILE_NAME = exports.VIEW_RANGE_MAX_LINES = exports.SELECTED_CODE_MAX_LENGTH = exports.MAX_ALLOWED_LINE = exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = exports.MAX_PREVIOUS_LINE_FOR_PROMPT = void 0;
+exports.MAX_PREVIOUS_LINE_FOR_PROMPT = 10;
 exports.MAX_ALLOWED_CACHED_SUGGESTION_DIFF = 3;
 exports.MAX_ALLOWED_LINE = 50;
 exports.SELECTED_CODE_MAX_LENGTH = 1000;
@@ -143,6 +143,7 @@ exports.TOP_INDEX = 5;
 exports.CHUNK_SIZE = 2500;
 exports.EMBEDDING_DEBOUNCE_TIMER = 5000;
 exports.MSG_WINDOW_SIZE = 5;
+exports.AUTOCOMPLETION_DEBOUNCE_TIMER = 2000;
 exports.CONFIGURATION_KEYS = {
     name: "autopilot",
     autopilot: {
@@ -196,7 +197,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.AutoCompleteProvider = void 0;
-const lodash_1 = __webpack_require__(5);
 const vscode = __webpack_require__(1);
 const api_1 = __webpack_require__(6);
 const constant_1 = __webpack_require__(3);
@@ -206,13 +206,12 @@ class AutoCompleteProvider {
         this.disposables = [];
         this.timeout = null;
         this.cache = {};
-        this.debouncedHandleSelectionChange = (0, lodash_1.debounce)(this.handleSelectionChange, 1000);
-        // Status bar item
+        this.suggestionTimer = null;
         this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         this.showStatusBar("ideal");
-        // Register completion provider
         const disposableCompletionProvider = vscode.languages.registerInlineCompletionItemProvider("*", {
             provideInlineCompletionItems: (document, position, context, cancellationToken) => __awaiter(this, void 0, void 0, function* () {
+                console.log("invoked");
                 const promptSelection = new vscode.Range(Math.max(0, position.line - constant_1.MAX_PREVIOUS_LINE_FOR_PROMPT), 0, Math.max(0, position.line - 1), 1000);
                 const previousCodeBlock = document.getText(promptSelection);
                 const isCurrentLineEmpty = document.lineAt(position.line).text.trim().length === 0;
@@ -225,15 +224,12 @@ class AutoCompleteProvider {
                 const prompt = `${previousCodeBlock}\n${currentLineContentTillCursor}` || `// ${document.fileName}`;
                 const stop = isCurrentLineEmpty ? (nextLineContent ? `\n${nextLineContent}` : "\n\n") : currentLineContentAfterCursor || "\n";
                 console.log({ prompt, stop });
-                // show loading status barStyle = 'light-content'
-                // this.statusBarItem.show();
-                // this.statusBarItem.text = '$(sync~spin)';
                 this.showStatusBar("thinking");
                 cancellationToken.onCancellationRequested(() => {
                     console.log("cancelled");
                     this.showStatusBar("ideal");
                 });
-                const suggestions = this.cache[prompt] || (yield (0, api_1.getCodeReplCompletions)(prompt, stop, cancellationToken));
+                const suggestions = this.cache[prompt] || (yield this.getDebouncedCodeCompletion(prompt, stop, cancellationToken));
                 this.cache[prompt] = suggestions;
                 this.showStatusBar("ideal");
                 return suggestions.map((suggestion) => {
@@ -242,17 +238,17 @@ class AutoCompleteProvider {
                 });
             }),
         });
-        const disposableEditorSelection = vscode.window.onDidChangeTextEditorSelection(this.debouncedHandleSelectionChange.bind(this));
-        this.disposables.push(disposableCompletionProvider, disposableEditorSelection);
+        this.disposables.push(disposableCompletionProvider);
     }
-    handleSelectionChange(event) {
-        if (event.kind === vscode.TextEditorSelectionChangeKind.Keyboard || event.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
-            console.log("should inkove");
-            this.showSuggestions();
-        }
-    }
-    showSuggestions() {
-        vscode.commands.executeCommand("editor.action.inlineSuggest.trigger");
+    getDebouncedCodeCompletion(prompt, stop, cancellationToken) {
+        return new Promise((resolve, reject) => {
+            if (this.suggestionTimer) {
+                clearTimeout(this.suggestionTimer);
+            }
+            this.suggestionTimer = setTimeout(() => {
+                (0, api_1.getCodeReplCompletions)(prompt, stop, cancellationToken).then(resolve, reject);
+            }, constant_1.AUTOCOMPLETION_DEBOUNCE_TIMER);
+        });
     }
     showStatusBar(state) {
         switch (state) {
@@ -17619,17 +17615,19 @@ exports.getCodeCompletions = getCodeCompletions;
 function getCodeReplCompletions(prompt, stop, cancellationToken) {
     return __awaiter(this, void 0, void 0, function* () {
         const abortController = new AbortController();
+        const { temperature, model } = (0, utils_1.getChatConfig)();
         cancellationToken.onCancellationRequested(() => {
             abortController.abort();
         });
         const body = {
             code: prompt,
-            max_token_length: 500,
-            model: "replit",
+            max_token_length: 100,
+            model,
             stop_sequence: stop,
         };
         try {
-            const url = "http://internal-ml-internal-hgpt-private-547292184.us-east-1.elb.amazonaws.com/completions/code";
+            // const url = "http://hackergpt-backend.hackerrank.link/completion/code";
+            const url = "http://localhost:8080/completion/code";
             const response = yield fetch(url, {
                 method: "POST",
                 headers: {

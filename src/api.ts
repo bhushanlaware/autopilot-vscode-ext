@@ -140,18 +140,22 @@ export async function getCodeCompletions(prompt: string, stop: string, cancellat
 
 export async function getCodeReplCompletions(prompt: string, stop: string, cancellationToken: vscode.CancellationToken): Promise<string[]> {
   const abortController = new AbortController();
+  const { temperature, model } = getChatConfig();
+
   cancellationToken.onCancellationRequested(() => {
     abortController.abort();
   });
 
   const body = {
     code: prompt,
-    max_token_length: 500,
-    model: "replit",
+    max_token_length: 100,
+    model,
     stop_sequence: stop,
   };
   try {
-    const url = "http://internal-ml-internal-hgpt-private-547292184.us-east-1.elb.amazonaws.com/completions/code";
+    // const url = "http://hackergpt-backend.hackerrank.link/completion/code";
+    const url = "http://localhost:8080/completion/code";
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
