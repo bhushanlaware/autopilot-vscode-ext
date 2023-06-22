@@ -283,6 +283,8 @@ export function readFileInChunks(fileContent: string, chunkSize = 2000) {
     chunks.push(fileContent.slice(i, i + chunkSize));
   }
   return chunks;
+}
+
 export function createFile({ fileName, fileContent }: { fileName: string; fileContent: string }) {
   const fileUri = vscode.Uri.parse(fileName);
   createFileIfNotExists(fileUri, fileContent);
@@ -423,7 +425,6 @@ export function runVscodeCommand({ command, ...args }: { command: string }) {
 //     },
 //   ];
 // }
-
 
 export function getVscodeControlFunctionsDescriptions() {
   return [

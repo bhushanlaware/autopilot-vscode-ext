@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 // @ts-ignore
 import { encode } from "./encoder";
 import { ChatCompletionRequestMessageRoleEnum } from "openai";
-import { Message } from "./ChatHistoryManager";
+import { Chat, Message } from "./ChatHistoryManager";
 import { Files } from "./types";
 import {
   fetchSSE,
@@ -198,7 +198,8 @@ export const createEmbedding = async (...contents: string[]) => {
   });
   return response.data.data[0].embedding;
 };
-export async function sudoVscode(userCommand: string, history: Chat[]) {
+
+export async function sudoVscode(userCommand: string, history: Message[]) {
   const baseProjectPath = getCurrentWorkSpaceFolderPath();
   const systemMessage = {
     role: ChatCompletionRequestMessageRoleEnum.System,
