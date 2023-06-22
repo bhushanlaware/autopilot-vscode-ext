@@ -80,7 +80,7 @@ function ChatApp() {
   }
 
   function handleCancel() {
-    vscode.postMessage({ type: "cancelGPTRequest", ans: prePartialAnswer });
+    vscode.postMessage({ type: "cancelGPTRequest", answer: prePartialAnswer });
     setHistory([...history, { role: "assistant", content: prePartialAnswer }]);
     setPrevPartialAnswer("");
   }

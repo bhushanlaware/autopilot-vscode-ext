@@ -1,20 +1,18 @@
 import { debounce } from "lodash";
 import * as vscode from "vscode";
 import { getCodeCompletions } from "./api";
-import { MAX_PREVIOUS_LINE_FOR_PROMPT } from "./constant";
+import { AUTOCOMPLETION_DEBOUNCE_TIMER, AUTOSUGGESTION_TRIGGER_DEBOUNCE_TIME, MAX_PREVIOUS_LINE_FOR_PROMPT } from "./constant";
 
 export class AutoCompleteProvider implements vscode.Disposable {
   disposables: vscode.Disposable[] = [];
   timeout: NodeJS.Timeout | null = null;
   statusBarItem: vscode.StatusBarItem;
   cache: { [key: string]: string[] } = {};
+  suggestionTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly context: vscode.ExtensionContext) {
-    // Status bar item
     this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     this.showStatusBar("ideal");
-
-    // Register completion provider
     const disposableCompletionProvider = vscode.languages.registerInlineCompletionItemProvider("*", {
       provideInlineCompletionItems: async (document, position, context, cancellationToken) => {
         let promptCode = [];
@@ -51,14 +49,13 @@ export class AutoCompleteProvider implements vscode.Disposable {
         if (!stop) {
           stop = isCurrentLineEmpty ? "\n\n" : "\n";
         }
-
         this.showStatusBar("thinking");
         cancellationToken.onCancellationRequested(() => {
           console.log("cancelled");
           this.showStatusBar("ideal");
         });
 
-        const suggestions = this.cache[prompt] || (await getCodeCompletions(prompt, stop, cancellationToken));
+        const suggestions = this.cache[prompt] || (await this.getDebouncedCodeCompletion(prompt, stop, cancellationToken));
 
         this.cache[prompt] = suggestions;
 
@@ -66,24 +63,33 @@ export class AutoCompleteProvider implements vscode.Disposable {
 
         return suggestions.map((suggestion) => {
           const endPosition = new vscode.Position(position.line, position.character + suggestion.length);
-          return new vscode.InlineCompletionItem(suggestion, new vscode.Range(position, position));
+          return new vscode.InlineCompletionItem(suggestion, new vscode.Range(position, endPosition));
         });
       },
     });
 
     const disposableEditorSelection = vscode.window.onDidChangeTextEditorSelection(this.debouncedHandleSelectionChange.bind(this));
+
     this.disposables.push(disposableCompletionProvider, disposableEditorSelection);
   }
-  private debouncedHandleSelectionChange = debounce(this.handleSelectionChange, 1000);
+  // Keeping small debounce here as we already have debounce after we trigger inline suggestion
+  private debouncedHandleSelectionChange = debounce(this.handleSelectionChange, AUTOSUGGESTION_TRIGGER_DEBOUNCE_TIME);
 
   private handleSelectionChange(event: vscode.TextEditorSelectionChangeEvent) {
-    if (event.kind === vscode.TextEditorSelectionChangeKind.Keyboard) {
-      this.showSuggestions();
+    if (event.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
+      vscode.commands.executeCommand("editor.action.inlineSuggest.trigger");
     }
   }
 
-  private showSuggestions() {
-    vscode.commands.executeCommand("editor.action.inlineSuggest.trigger");
+  private getDebouncedCodeCompletion(prompt: string, stop: string, cancellationToken: vscode.CancellationToken): Promise<string[]> {
+    return new Promise((resolve, reject) => {
+      if (this.suggestionTimer) {
+        clearTimeout(this.suggestionTimer);
+      }
+      this.suggestionTimer = setTimeout(() => {
+        getCodeCompletions(prompt, stop, cancellationToken).then(resolve, reject);
+      }, AUTOCOMPLETION_DEBOUNCE_TIMER);
+    });
   }
 
   private showStatusBar(state: "thinking" | "ideal") {

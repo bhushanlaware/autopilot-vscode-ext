@@ -54,6 +54,7 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
 
         case "cancelGPTRequest":
           cancelGPTRequest();
+          this.chatHistoryManager.addAnswer(data.answer);
           break;
 
         case "startNewChat":
