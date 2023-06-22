@@ -10,7 +10,7 @@ export const TOP_INDEX = 5;
 export const CHUNK_SIZE = 2500;
 export const EMBEDDING_DEBOUNCE_TIMER = 5000;
 export const MSG_WINDOW_SIZE = 5;
-export const AUTOCOMPLETION_DEBOUNCE_TIMER = 2000;
+export const AUTOCOMPLETION_DEBOUNCE_TIMER = 1000;
 export const CONFIGURATION_KEYS = {
   name: "autopilot",
   autopilot: {

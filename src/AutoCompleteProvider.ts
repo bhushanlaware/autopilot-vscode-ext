@@ -56,7 +56,20 @@ export class AutoCompleteProvider implements vscode.Disposable {
       },
     });
 
-    this.disposables.push(disposableCompletionProvider);
+    const disposableEditorSelection = vscode.window.onDidChangeTextEditorSelection(this.debouncedHandleSelectionChange.bind(this));
+
+    this.disposables.push(disposableCompletionProvider, disposableEditorSelection);
+  }
+  private debouncedHandleSelectionChange = debounce(this.handleSelectionChange, 100);
+
+  private handleSelectionChange(event: vscode.TextEditorSelectionChangeEvent) {
+    if (event.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
+      this.showSuggestions();
+    }
+  }
+
+  private showSuggestions() {
+    vscode.commands.executeCommand("editor.action.inlineSuggest.trigger");
   }
 
   private getDebouncedCodeCompletion(prompt: string, stop: string, cancellationToken: vscode.CancellationToken): Promise<string[]> {

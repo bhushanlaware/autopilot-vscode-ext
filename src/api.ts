@@ -149,12 +149,13 @@ export async function getCodeReplCompletions(prompt: string, stop: string, cance
   const body = {
     code: prompt,
     max_token_length: 100,
-    model,
+    model: "replit",
     stop_sequence: stop,
   };
   try {
     // const url = "http://hackergpt-backend.hackerrank.link/completion/code";
-    const url = "http://localhost:8080/completion/code";
+    // const url = "http://localhost:8080/completions/code";
+    const url = "http://internal-ml-internal-hgpt-private-547292184.us-east-1.elb.amazonaws.com/completions/code";
 
     const response = await fetch(url, {
       method: "POST",
