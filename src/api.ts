@@ -1,21 +1,20 @@
 import * as vscode from "vscode";
-// @ts-ignore
-import { encode } from "./encoder";
 import { ChatCompletionRequestMessageRoleEnum } from "openai";
 import { Message } from "./ChatHistoryManager";
+import { MSG_WINDOW_SIZE } from "./constant";
+// @ts-ignore
+import { encode } from "./encoder";
 import { Files } from "./types";
 import {
   fetchSSE,
   getChatConfig,
   getCompletionConfig,
-  getFiles,
   getInstruction,
   getOpenAIKey,
   getOpenApi,
   modelMaxTokens,
   openaiBaseURL,
 } from "./utils";
-import { IS_ALWAYS_COMPLETIONS_ONE_LINE, MSG_WINDOW_SIZE } from "./constant";
 
 let abortController: AbortController | null = null;
 export function cancelGPTRequest() {
