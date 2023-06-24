@@ -5,6 +5,7 @@ import { ChatGPTViewProvider } from "./ChatGPTViewProvider";
 import { IndexingProvider } from "./IndexingProvider";
 import ChatsManager from "./ChatHistoryManager";
 import { ChatHistoryTreeViewProvider } from "./ChatHistoryTreeViewProvider";
+import { UsageProvider } from "./UsageProvider";
 
 export async function activate(context: vscode.ExtensionContext) {
   const configProvider = new ConfigProvider();
@@ -19,6 +20,7 @@ export async function activate(context: vscode.ExtensionContext) {
       const chatHistoryTreeViewProvider = new ChatHistoryTreeViewProvider(context, chatHistoryManager);
 
       const indexingProvider = new IndexingProvider(context);
+      const usageProvider = new UsageProvider(context);
 
       const chatGPTWebViewPanel = vscode.window.registerWebviewViewProvider("autopilot.chat", chatGPTWebViewProvider, {
         webviewOptions: {
@@ -30,6 +32,7 @@ export async function activate(context: vscode.ExtensionContext) {
       context.subscriptions.push(chatGPTWebViewPanel);
       context.subscriptions.push(autoCompleteProvider);
       context.subscriptions.push(indexingProvider);
+      context.subscriptions.push(usageProvider);
     })
     .catch((error) => {
       console.error(error);

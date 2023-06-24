@@ -50,3 +50,40 @@ export const CHAT_CONTEXT = {
   currentFile: "Current File",
   openedFiles: "Opened Files",
 };
+
+export const openaiModel = {
+  "gpt-4": {
+    maxToken: 8000,
+    pricingPer1kToken: 0.03,
+  },
+  "gpt-4-32k": {
+    maxToken: 32000,
+    pricingPer1kToken: 0.06,
+  },
+  "gpt-3.5-turbo": {
+    maxToken: 4000,
+    pricingPer1kToken: 0.0015,
+  },
+  "gpt-3.5-turbo-16k": {
+    maxToken: 16000,
+    pricingPer1kToken: 0.003,
+  },
+  "text-davinci-003": {
+    pricingPer1kToken: 0.02,
+  },
+  "text-curie-001": {
+    pricingPer1kToken: 0.002,
+  },
+  "text-babbage-001": {
+    pricingPer1kToken: 0.0005,
+  },
+  "text-ada-001": {
+    pricingPer1kToken: 0.0004,
+  },
+  "text-embedding-ada-002": {
+    pricingPer1kToken: 0.0001,
+  },
+  "text-search-ada-doc-001": {
+    pricingPer1kToken: 0.004,
+  },
+};

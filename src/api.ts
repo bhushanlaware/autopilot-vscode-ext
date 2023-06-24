@@ -71,6 +71,8 @@ export function askQuestionWithPartialAnswers(question: string, history: Message
       model,
     };
 
+    vscode.commands.executeCommand("autopilot.addChatCost", model, totalTokens);
+
     function onMessage(data: string) {
       var _a2;
       if (data === "[DONE]") {
@@ -78,6 +80,7 @@ export function askQuestionWithPartialAnswers(question: string, history: Message
       }
       try {
         const response = JSON.parse(data);
+        console.log(data);
         if ((_a2 = response == null ? void 0 : response.choices) == null ? void 0 : _a2.length) {
           const delta = response.choices[0].delta;
           if (delta == null ? void 0 : delta.content) {
@@ -124,6 +127,13 @@ export async function getCodeCompletions(prompt: string, stop: string, cancellat
         signal: abortController.signal,
       }
     );
+
+    const tokenUsed = data.usage?.total_tokens;
+
+    if (tokenUsed) {
+      vscode.commands.executeCommand("autopilot.addCompletionCost", config.model, tokenUsed);
+    }
+
     const choices = (data.choices || []).map((completion) => {
       if (completion.text) {
         return completion.text.startsWith("\n") ? completion.text.slice(1) : completion.text;
@@ -146,6 +156,13 @@ export async function getChatTitle(chatContext: string): Promise<string> {
     n: 1,
     top_p: 1,
   });
+
+  const tokenUsed = res.data.usage?.total_tokens;
+
+  if (tokenUsed) {
+    vscode.commands.executeCommand("autopilot.addCompletionCost", "text-davinci-002", tokenUsed);
+  }
+
   return res.data.choices[0].text?.trim() || "";
 }
 
