@@ -68,6 +68,9 @@ export const openaiModel = {
     maxToken: 16000,
     pricingPer1kToken: 0.003,
   },
+  "text-davinci-002": {
+    pricingPer1kToken: 0.02,
+  },
   "text-davinci-003": {
     pricingPer1kToken: 0.02,
   },

@@ -80,6 +80,11 @@
           "type": "tree",
           "id": "autopilot.chatList",
           "name": "Chat List"
+        },
+        {
+          "type": "webview",
+          "id": "autopilot.usage",
+          "name": "OpenAI Usage"
         }
       ]
     },

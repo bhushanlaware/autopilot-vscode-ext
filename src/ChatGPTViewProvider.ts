@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import ChatsManager, { Chat } from "./ChatHistoryManager";
 import { askQuestionWithPartialAnswers, cancelGPTRequest } from "./api";
+import { getNonce } from "./utils";
 
 export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
   private disposables: vscode.Disposable[] = [];
@@ -149,13 +150,4 @@ export class ChatGPTViewProvider implements vscode.WebviewViewProvider {
     this.disposables = [];
     this.webviewView = undefined;
   }
-}
-
-function getNonce() {
-  let text = "";
-  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  for (let i = 0; i < 32; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
 }

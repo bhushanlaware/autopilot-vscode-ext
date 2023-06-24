@@ -5,7 +5,7 @@ import { ChatGPTViewProvider } from "./ChatGPTViewProvider";
 import { IndexingProvider } from "./IndexingProvider";
 import ChatsManager from "./ChatHistoryManager";
 import { ChatHistoryTreeViewProvider } from "./ChatHistoryTreeViewProvider";
-import { UsageProvider } from "./UsageProvider";
+import { UsageProvider } from "./UsageViewProvider";
 
 export async function activate(context: vscode.ExtensionContext) {
   const configProvider = new ConfigProvider();
@@ -14,25 +14,35 @@ export async function activate(context: vscode.ExtensionContext) {
   configProvider
     .getOpenApiKey()
     .then((key) => {
-      console.log(key);
+      // Autocomplete Provider
       const autoCompleteProvider = new AutoCompleteProvider(context);
+      context.subscriptions.push(autoCompleteProvider);
+
+      //Chat WebView Provider
       const chatGPTWebViewProvider = new ChatGPTViewProvider(context, chatHistoryManager);
-      const chatHistoryTreeViewProvider = new ChatHistoryTreeViewProvider(context, chatHistoryManager);
-
-      const indexingProvider = new IndexingProvider(context);
-      const usageProvider = new UsageProvider(context);
-
       const chatGPTWebViewPanel = vscode.window.registerWebviewViewProvider("autopilot.chat", chatGPTWebViewProvider, {
         webviewOptions: {
           retainContextWhenHidden: true,
         },
       });
-      vscode.window.registerTreeDataProvider("autopilot.chatList", chatHistoryTreeViewProvider);
-
       context.subscriptions.push(chatGPTWebViewPanel);
-      context.subscriptions.push(autoCompleteProvider);
+
+      // Indexing provider
+      const indexingProvider = new IndexingProvider(context);
       context.subscriptions.push(indexingProvider);
-      context.subscriptions.push(usageProvider);
+
+      // Usage view provider
+      const usageProvider = new UsageProvider(context);
+      const usageViewPanel = vscode.window.registerWebviewViewProvider("autopilot.usage", usageProvider, {
+        webviewOptions: {
+          retainContextWhenHidden: true,
+        },
+      });
+      context.subscriptions.push(usageViewPanel);
+
+      // Chat history tree view provider
+      const chatHistoryTreeViewProvider = new ChatHistoryTreeViewProvider(context, chatHistoryManager);
+      vscode.window.registerTreeDataProvider("autopilot.chatList", chatHistoryTreeViewProvider);
     })
     .catch((error) => {
       console.error(error);

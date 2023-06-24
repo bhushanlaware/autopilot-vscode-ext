@@ -80,7 +80,6 @@ export function askQuestionWithPartialAnswers(question: string, history: Message
       }
       try {
         const response = JSON.parse(data);
-        console.log(data);
         if ((_a2 = response == null ? void 0 : response.choices) == null ? void 0 : _a2.length) {
           const delta = response.choices[0].delta;
           if (delta == null ? void 0 : delta.content) {
@@ -171,5 +170,6 @@ export const createEmbedding = async (...contents: string[]) => {
     input: contents.join("\n"),
     model: "text-embedding-ada-002",
   });
+  vscode.commands.executeCommand("autopilot.addEmbeddingCost", "text-embedding-ada-002", response.data.usage.total_tokens);
   return response.data.data[0].embedding;
 };

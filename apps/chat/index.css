@@ -145,3 +145,22 @@ pre {
 textarea {
   resize: none;
 }
+
+.input-container {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.input-with-icon {
+  padding-right: 30px;
+  box-sizing: border-box;
+}
+
+.end-icon {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}

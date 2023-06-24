@@ -46,15 +46,11 @@ export class IndexingProvider implements vscode.Disposable {
   }
 
   private updateIndexing() {
-    const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
-    statusBar.text = "$(search) indexing";
-    statusBar.tooltip = "Autopilot AI updating indexing";
-    statusBar.show();
-    this.disposables.push(statusBar);
+    this.statusBar.show();
+
     const files = this.pendingFileChangesToBeIndexed;
     this.createEmbeddings(files, true).then(() => {
-      statusBar.hide();
-      statusBar.dispose();
+      this.statusBar.hide();
       this.pendingFileChangesToBeIndexed = {};
     });
   }

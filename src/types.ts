@@ -49,3 +49,14 @@ export interface CompletionConfig {
 export interface IEmbedding {
   [fileName: string]: number[];
 }
+
+export type TCost = {
+  totalTokenUsed: number;
+  totalCost: number;
+};
+
+export interface IUsage {
+  chat: TCost;
+  completion: TCost;
+  embedding: TCost;
+}

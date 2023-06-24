@@ -56,6 +56,14 @@ export const openaiBaseURL = "https://api.openai.com";
 // 	return `You are the Codex Open AI model, which returns block of code as per user-provided code in chat. Obey indentations and don't provide text instructions as your chat output will be used directly in the code file without any cleaning or refactoring. Note: If completion is done on the same line don't repeat earlier code.`
 // }
 
+export function getNonce() {
+  let text = "";
+  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  for (let i = 0; i < 32; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
+}
 export function getWorkspaceBasePath() {
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (workspaceFolders) {

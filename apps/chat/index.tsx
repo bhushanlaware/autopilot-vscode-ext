@@ -4,7 +4,8 @@ import MessageBody from "./MessageBody";
 
 import "../common/App.css";
 import "./index.css";
-import { FaPlus as NewChatIcon, FaPaperPlane, FaStop, FaUser as UserIcon, FaRobot as BotIcon } from 'react-icons/fa';
+import { FaPaperPlane, FaStop, FaUser as UserIcon, FaRobot as BotIcon } from 'react-icons/fa';
+import { FaPlusSquare as NewChatIcon } from 'react-icons/fa';
 
 import AutoResizeTextarea from "./AutoResizeTextarea";
 import { ThemeProvider, ThemeType } from "./hook/useTheme";
@@ -74,7 +75,7 @@ function ChatApp() {
     setInput("");
   }
 
-  function clearChat() {
+  function startNewChat() {
     setHistory([]);
     vscode.postMessage({ type: "startNewChat" });
   }
@@ -113,7 +114,7 @@ function ChatApp() {
 
   const renderNewChatButton = () => (
     history.length ? (
-      <button className="warning" onClick={clearChat}>
+      <button className="warning" onClick={startNewChat} style={{ whiteSpace: 'nowrap' }}>
         <NewChatIcon />
       </button>
     ) : null
@@ -129,6 +130,7 @@ function ChatApp() {
           {prePartialAnswer && <Chat message={{ role: "assistant", content: prePartialAnswer }} />}
         </div>
         <div className="chat-controller">
+
           <AutoResizeTextarea
             placeholder="Ask question.."
             value={input}
@@ -138,8 +140,8 @@ function ChatApp() {
 
           {prePartialAnswer ? renderStopButton() : (
             <>
-              {renderSendButton()}
-              {/* {renderNewChatButton()} */}
+              {/* {renderSendButton()} */}
+              {renderNewChatButton()}
             </>
           )}
         </div>

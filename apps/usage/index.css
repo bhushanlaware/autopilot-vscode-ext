@@ -1,0 +1,38 @@
+/* Style for the table */
+table.vscode-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  line-height: var(--vscode-line-height);
+}
+
+/* Style for table headers */
+table.vscode-table th {
+  background-color: var(--vscode-sideBarSectionHeader-background);
+  color: var(--vscode-sideBarSectionHeader-foreground);
+  font-weight: bold;
+  padding: 8px;
+  border: 1px solid var(--vscode-editorGroupHeader-tabsBackground);
+  text-align: left;
+}
+
+/* Style for alternating row colors */
+table.vscode-table tr {
+  background-color: var(--vscode-editor-widget-background);
+}
+
+/* Style for table cells */
+table.vscode-table td {
+  color: var(--vscode-editor-foreground);
+  padding: 8px;
+  border: 1px solid var(--vscode-editorGroupHeader-tabsBackground);
+}
+/* Style for table cells */
+table.vscode-table thead tr {
+  background-color: var(--vscode-editor-background);
+}
+
+table.vscode-table tr:last-child {
+  background-color: var(--vscode-editor-background);
+}

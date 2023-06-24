@@ -5,13 +5,15 @@ const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
 const appsPath = path.join(__dirname, 'apps');
 const chatAppPath = path.join(appsPath, 'chat', 'index.tsx');
 const searchAppPath = path.join(appsPath, 'search', 'index.tsx');
+const usageAppPath = path.join(appsPath, 'usage', 'index.tsx');
 /**
  * @type {import('webpack').Configuration}
  */
 module.exports = {
   entry: {
     chat: chatAppPath,
-    search: searchAppPath
+    search: searchAppPath,
+    usage: usageAppPath
   },
   output: {
     path: path.resolve(__dirname, 'media'),
