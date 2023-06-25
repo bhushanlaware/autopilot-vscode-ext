@@ -115,9 +115,8 @@ export class AutoCompleteProvider implements vscode.Disposable {
   }
 
   private showStatusBar(state: "thinking" | "ideal") {
-    console.log(this.isEnabled);
     if (this.isEnabled) {
-      this.statusBarItem.color = state === "thinking" ? "lightgreen" : "lightblue";
+      this.statusBarItem.color = "";
       this.statusBarItem.tooltip = "Disable Autopilot Autocompletion";
     } else {
       this.statusBarItem.color = "#FF0000";

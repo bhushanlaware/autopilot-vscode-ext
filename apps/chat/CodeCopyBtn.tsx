@@ -26,7 +26,7 @@ export default function CodeCopyBtn({ children, onCopy }: any) {
   };
 
   return (
-    <div className="code-copy-btn" onClick={handleClick} role="button">
+    <div className="code-copy-btn " onClick={handleClick} role="button">
       <Icon />
     </div>
   );

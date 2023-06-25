@@ -102,7 +102,7 @@ function ChatApp() {
 
   const renderStopButton = () => (
     <button className="danger" onClick={handleCancel}>
-      <FaStop />
+      Stop
     </button>
   );
 
@@ -114,8 +114,8 @@ function ChatApp() {
 
   const renderNewChatButton = () => (
     history.length ? (
-      <button className="warning" onClick={startNewChat} style={{ whiteSpace: 'nowrap' }}>
-        <NewChatIcon />
+      <button className="primary mr-2" onClick={startNewChat} style={{ whiteSpace: 'nowrap' }}>
+        New
       </button>
     ) : null
   );
@@ -130,7 +130,12 @@ function ChatApp() {
           {prePartialAnswer && <Chat message={{ role: "assistant", content: prePartialAnswer }} />}
         </div>
         <div className="chat-controller">
-
+          {prePartialAnswer ? renderStopButton() : (
+            <>
+              {/* {renderSendButton()} */}
+              {renderNewChatButton()}
+            </>
+          )}
           <AutoResizeTextarea
             placeholder="Ask question.."
             value={input}
@@ -138,12 +143,7 @@ function ChatApp() {
             onKeyDown={handleKeyPress}
           ></AutoResizeTextarea>
 
-          {prePartialAnswer ? renderStopButton() : (
-            <>
-              {/* {renderSendButton()} */}
-              {renderNewChatButton()}
-            </>
-          )}
+
         </div>
 
       </div>

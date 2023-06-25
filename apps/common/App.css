@@ -133,15 +133,26 @@ body {
   padding: 0;
 }
 
-button.translucent {
-  background-color: rgba(255, 255, 255, 0.5);
-  color: #fff;
+.button {
+  background-color: rgba(0, 0, 0, 0.2); /* Adjust the alpha value to control transparency */
+  color: white;
   border: none;
   padding: 10px 20px;
-  text-align: center;
-  text-decoration: none;
-  display: inline-block;
-  font-size: 16px;
-  margin: 4px 2px;
+  font-size: 14px;
   cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.button:hover {
+  background-color: rgba(0, 0, 0, 0.4); /* Adjust the alpha value to control transparency */
+}
+
+/* Additional styles to match VSCode theme */
+.vscode-theme .button {
+  background-color: rgba(100, 100, 100, 0.2); /* Adjust the color values and alpha to match your theme */
+  color: #ffffff;
+}
+
+.vscode-theme .button:hover {
+  background-color: rgba(100, 100, 100, 0.4); /* Adjust the color values and alpha to match your theme */
 }
