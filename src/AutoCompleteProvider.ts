@@ -12,9 +12,15 @@ export class AutoCompleteProvider implements vscode.Disposable {
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    this.statusBarItem.command = "autopilot.completion.toggle";
+
     this.showStatusBar("ideal");
     const disposableCompletionProvider = vscode.languages.registerInlineCompletionItemProvider("*", {
       provideInlineCompletionItems: async (document, position, context, cancellationToken) => {
+        if (!this.isEnabled) {
+          return [];
+        }
+
         let promptCode = [];
         // Add file name at top
 
@@ -70,7 +76,8 @@ export class AutoCompleteProvider implements vscode.Disposable {
 
     const disposableEditorSelection = vscode.window.onDidChangeTextEditorSelection(this.debouncedHandleSelectionChange.bind(this));
 
-    this.disposables.push(disposableCompletionProvider, disposableEditorSelection);
+    const completionToggleCommand = vscode.commands.registerCommand("autopilot.completion.toggle", this.toggleAutocompletion.bind(this));
+    this.disposables.push(disposableCompletionProvider, disposableEditorSelection, completionToggleCommand);
   }
   // Keeping small debounce here as we already have debounce after we trigger inline suggestion
   private debouncedHandleSelectionChange = debounce(this.handleSelectionChange, AUTOSUGGESTION_TRIGGER_DEBOUNCE_TIME);
@@ -79,6 +86,21 @@ export class AutoCompleteProvider implements vscode.Disposable {
     if (event.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
       vscode.commands.executeCommand("editor.action.inlineSuggest.trigger");
     }
+  }
+
+  private toggleAutocompletion() {
+    const config = vscode.workspace.getConfiguration("autopilot");
+    const configKey = "completion.enabled";
+
+    config.update(configKey, !this.isEnabled, true).then(() => {
+      this.showStatusBar("ideal");
+    });
+  }
+
+  private get isEnabled() {
+    const config = vscode.workspace.getConfiguration("autopilot");
+    const configKey = "completion.enabled";
+    return config.get(configKey);
   }
 
   private getDebouncedCodeCompletion(prompt: string, stop: string, cancellationToken: vscode.CancellationToken): Promise<string[]> {
@@ -93,10 +115,18 @@ export class AutoCompleteProvider implements vscode.Disposable {
   }
 
   private showStatusBar(state: "thinking" | "ideal") {
+    console.log(this.isEnabled);
+    if (this.isEnabled) {
+      this.statusBarItem.color = state === "thinking" ? "lightgreen" : "lightblue";
+      this.statusBarItem.tooltip = "Disable Autopilot Autocompletion";
+    } else {
+      this.statusBarItem.color = "#FF0000";
+      this.statusBarItem.tooltip = "Enable Autopilot Autocompletion";
+    }
+
     switch (state) {
       case "ideal":
         this.statusBarItem.text = "$(hubot)";
-        this.statusBarItem.tooltip = "Autopilot";
         break;
       case "thinking":
         this.statusBarItem.text = "$(sync~spin)";

@@ -58,6 +58,10 @@
       {
         "command": "autopilot.deleteChat",
         "title": "Delete Chat"
+      },
+      {
+        "command": "autopilot.completion.toggle",
+        "title": "Toggle Autopilot completion"
       }
     ],
     "viewsContainers": {
@@ -174,6 +178,11 @@
           "type": "boolean",
           "default": false,
           "description": "Enable Sementic search for getting better context our project, Please keep in mind this might increase billing."
+        },
+        "autopilot.completion.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable AI Auto code completion"
         }
       }
     }

@@ -62,6 +62,14 @@ export async function activate(context: vscode.ExtensionContext) {
     }
     statusBarItem.text = "$(zap) Autopilot Reset";
     statusBarItem.dispose();
+    const msg = "Autopilot has been reset. Please reload the window to start using it.";
+    const interactions = ["Reload Now"];
+
+    vscode.window.showInformationMessage(msg, ...interactions).then((userSelection) => {
+      if (userSelection === "Reload Now") {
+        vscode.commands.executeCommand("workbench.action.reloadWindow");
+      }
+    });
   });
 }
 

@@ -27,6 +27,7 @@ export function askQuestionWithPartialAnswers(question: string, history: Message
   return new Promise<string>(async (resolve, reject) => {
     const { temperature, model } = getChatConfig();
     const relativeContext = (await vscode.commands.executeCommand("autopilot.getContext", question)) as Files;
+    console.log(relativeContext);
     const systemInstruction = getInstruction(relativeContext);
 
     let fullResponse = "";
