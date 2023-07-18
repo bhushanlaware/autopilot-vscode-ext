@@ -163,13 +163,19 @@ function Chat({ message }: ChatProps) {
   return (
     <div className="chat">
       <div className="message">
-        <div className="message__author">{
-          message.role === "assistant" ?
-            <> <BotIcon /> Assistant </> :
-            <><UserIcon /> You </>}
+        <div className="message__author">
+          {
+            message.role === "assistant" ?
+              <> <BotIcon /> Assistant </> :
+              <><UserIcon /> You </>
+          }
         </div>
         <div className="message__text">
-          <MessageBody onCopy={handleCopy} content={message.content} />
+          {
+            message.role === "assistant" ?
+              <MessageBody onCopy={handleCopy} content={message.content} /> :
+              <p>{message.content}</p>
+          }
         </div>
       </div>
     </div>
