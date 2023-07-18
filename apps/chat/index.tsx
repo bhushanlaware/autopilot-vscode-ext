@@ -40,19 +40,20 @@ function ChatApp() {
       const message = event.data;
       switch (message.type) {
         case "partial_answer_done":
-          setHistory([...history, { role: "assistant", content: prePartialAnswer }]);
-          setPrevPartialAnswer("");
+          setPrevPartialAnswer(prePartialAnswer => {
+            setHistory(history => [...history, { role: "assistant", content: prePartialAnswer }]);
+            return '';
+          });
           break;
 
         case "partial_answer":
-          setPrevPartialAnswer(`${prePartialAnswer}${message.partialAnswer}`);
+          setPrevPartialAnswer(prePartialAnswer => `${prePartialAnswer}${message.partialAnswer}`);
           break;
 
         case "set_history":
           setHistory(message.history);
           break;
         case 'update-theme':
-          console.log(message);
           setTheme(message.theme);
           break;
         default:
@@ -155,7 +156,7 @@ type ChatProps = {
   message: GPTMessage;
 };
 
-function Chat({ message }: ChatProps) {
+const Chat = React.memo(function ({ message }: ChatProps) {
   function handleCopy(code: string) {
     vscode.postMessage({ type: "handle_copy", code });
   }
@@ -174,12 +175,12 @@ function Chat({ message }: ChatProps) {
           {
             message.role === "assistant" ?
               <MessageBody onCopy={handleCopy} content={message.content} /> :
-              <p>{message.content}</p>
+              <p className="user-msg">{message.content}</p>
           }
         </div>
       </div>
     </div>
   );
-}
+});
 
 ReactDOM.render(<ChatApp />, document.getElementById("root"));

@@ -164,3 +164,8 @@ textarea {
   transform: translateY(-50%);
   pointer-events: none;
 }
+
+.user-msg {
+  padding: 15px !important;
+  background: none;
+}
