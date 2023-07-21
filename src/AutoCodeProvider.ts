@@ -24,7 +24,7 @@ export class AutoCodeProvider implements vscode.Disposable {
     );
   }
 
-  writeCodeForPrompt(prompt: string) {
+  async writeCodeForPrompt(prompt: string) {
     this.chunks = [];
     let activeEditor = vscode.window.activeTextEditor;
     if (activeEditor) {

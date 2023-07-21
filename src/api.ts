@@ -266,6 +266,11 @@ export const writeCodeForPrompt = (
     function onMessage(data: string) {
       var _a2;
       if (data === "[DONE]") {
+        const totalTokens = messages.reduce((acc, message) => {
+          return acc + encode(message.content).length;
+        }, 0);
+
+        vscode.commands.executeCommand("autopilot.addChatCost", "gpt-3.5-turbo", totalTokens);
         resolve(fullResponse);
       }
       try {
