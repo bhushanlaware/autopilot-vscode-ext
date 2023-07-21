@@ -114,6 +114,41 @@ export async function getCodeCompletions(prompt: string, stop: string, cancellat
   });
 
   try {
+    // If chat model is selected
+    if (config.model === "gpt-4" || config.model === "gpt-3.5-turbo") {
+      const { data } = await getOpenApi().createChatCompletion(
+        {
+          messages: [
+            {
+              role: ChatCompletionRequestMessageRoleEnum.User,
+              content: prompt,
+            },
+          ],
+          model: config.model,
+          max_tokens: config.maxTokens,
+          temperature: config.temperature,
+          stop,
+        },
+        {
+          signal: abortController.signal,
+        }
+      );
+
+      const tokenUsed = data.usage?.total_tokens;
+      if (tokenUsed) {
+        vscode.commands.executeCommand("autopilot.addChatCost", config.model, tokenUsed);
+      }
+
+      const choices = (data.choices || []).map((completion) => {
+        if (completion?.message?.content) {
+          return completion.message.content.startsWith("\n") ? completion.message.content.slice(1) : completion.message.content;
+        }
+        return "";
+      });
+      return choices;
+    }
+
+    // Else use completion model
     const { data } = await getOpenApi().createCompletion(
       {
         prompt,

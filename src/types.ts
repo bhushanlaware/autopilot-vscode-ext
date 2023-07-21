@@ -40,7 +40,7 @@ export interface CompletionRequest {
 }
 
 export interface CompletionConfig {
-  model: CompletionModel;
+  model: CompletionModel | ChatModel;
   temperature: number;
   maxTokens: number;
   numberOfCompletions: number;
