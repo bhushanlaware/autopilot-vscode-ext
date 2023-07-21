@@ -120,6 +120,12 @@ export async function getCodeCompletions(prompt: string, stop: string, cancellat
         {
           messages: [
             {
+              role: "system",
+              content:
+                "You are vscode copilot who complete the user code. " +
+                "or suggest the new code. Just provide code don't provide the instructions. ",
+            },
+            {
               role: ChatCompletionRequestMessageRoleEnum.User,
               content: prompt,
             },
