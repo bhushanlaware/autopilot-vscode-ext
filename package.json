@@ -62,6 +62,10 @@
       {
         "command": "autopilot.completion.toggle",
         "title": "Toggle Autopilot completion"
+      },
+      {
+        "command": "autopilot.writeCode",
+        "title": "Ask Autopilot"
       }
     ],
     "viewsContainers": {
@@ -73,6 +77,14 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "autopilot.writeCode",
+        "key": "win+k",
+        "mac": "cmd+k",
+        "when": "editorTextFocus"
+      }
+    ],
     "views": {
       "autopilot-chat-view": [
         {

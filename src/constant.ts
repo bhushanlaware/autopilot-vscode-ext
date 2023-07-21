@@ -13,6 +13,7 @@ export const AUTOCOMPLETION_DEBOUNCE_TIMER = 300;
 export const AUTOSUGGESTION_TRIGGER_DEBOUNCE_TIME = 100;
 export const MSG_WINDOW_SIZE = 5;
 export const IS_ALWAYS_COMPLETIONS_ONE_LINE = true;
+export const AUTOWRITE_CONTEXT_WINDOW = 10;
 export const CONFIGURATION_KEYS = {
   name: "autopilot",
   autopilot: {

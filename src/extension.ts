@@ -6,6 +6,7 @@ import { IndexingProvider } from "./IndexingProvider";
 import ChatsManager from "./ChatHistoryManager";
 import { ChatHistoryTreeViewProvider } from "./ChatHistoryTreeViewProvider";
 import { UsageProvider } from "./UsageViewProvider";
+import { AutoCodeProvider } from "./AutoCodeProvider";
 
 export async function activate(context: vscode.ExtensionContext) {
   const configProvider = new ConfigProvider();
@@ -43,6 +44,10 @@ export async function activate(context: vscode.ExtensionContext) {
       // Chat history tree view provider
       const chatHistoryTreeViewProvider = new ChatHistoryTreeViewProvider(context, chatHistoryManager);
       vscode.window.registerTreeDataProvider("autopilot.chatList", chatHistoryTreeViewProvider);
+
+      // Auto code writer
+      const autoCodeProvider = new AutoCodeProvider(context);
+      context.subscriptions.push(autoCodeProvider);
     })
     .catch((error) => {
       console.error(error);

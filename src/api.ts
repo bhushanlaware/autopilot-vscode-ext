@@ -27,7 +27,6 @@ export function askQuestionWithPartialAnswers(question: string, history: Message
   return new Promise<string>(async (resolve, reject) => {
     const { temperature, model } = getChatConfig();
     const relativeContext = (await vscode.commands.executeCommand("autopilot.getContext", question)) as Files;
-    console.log(relativeContext);
     const systemInstruction = getInstruction(relativeContext);
 
     let fullResponse = "";
@@ -173,4 +172,84 @@ export const createEmbedding = async (...contents: string[]) => {
   });
   vscode.commands.executeCommand("autopilot.addEmbeddingCost", "text-embedding-ada-002", response.data.usage.total_tokens);
   return response.data.data[0].embedding;
+};
+
+export const writeCodeForPrompt = (
+  prompt: string,
+  windowCode: string,
+  selectedCode: string,
+  fileName: string,
+  onPartialCode: (_: string) => void
+): Promise<string> => {
+  return new Promise<string>(async (resolve, reject) => {
+    const systemInstructions = [`You are code writer who write code inside vscode editor. Return output as code.`];
+    if (selectedCode) {
+      systemInstructions.push(`USER SELECTED CODE::\`\`\`${selectedCode}\`\`\``);
+      systemInstructions.push(`USER SELECTED CODE will always be replaced with your code.`);
+    }
+
+    if (windowCode) {
+      systemInstructions.push(`USER WINDOWED CODE::\`\`\`${windowCode}\`\`\``);
+      systemInstructions.push(`USER WINDOWS CODE is code near user cursor.`);
+    }
+
+    let fullResponse = "";
+    abortController = new AbortController();
+
+    const messages = [
+      {
+        role: ChatCompletionRequestMessageRoleEnum.System,
+        content: systemInstructions.join("\n\n"),
+      },
+      {
+        role: ChatCompletionRequestMessageRoleEnum.User,
+        content: `${prompt}, GIVE THE CODE ONLY DON'T PROVIDE INSTRUCTIONS.
+        OUTPUT:: \`\`\`\n`,
+      },
+    ];
+
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getOpenAIKey()}`,
+    };
+
+    const url = `${openaiBaseURL}/v1/chat/completions`;
+    const body = {
+      messages,
+      temperature: 0,
+      stream: true,
+      model: "gpt-3.5-turbo",
+      stop: "```",
+    };
+
+    function onMessage(data: string) {
+      var _a2;
+      if (data === "[DONE]") {
+        resolve(fullResponse);
+      }
+      try {
+        const response = JSON.parse(data);
+        if ((_a2 = response == null ? void 0 : response.choices) == null ? void 0 : _a2.length) {
+          const delta = response.choices[0].delta;
+          if (delta == null ? void 0 : delta.content) {
+            const responseText = delta.content;
+            if (responseText) {
+              fullResponse += responseText;
+              onPartialCode(responseText);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("OpenAI stream SEE event unexpected error", err);
+      }
+    }
+
+    fetchSSE(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      onMessage,
+      signal: (abortController as any).signal,
+    });
+  });
 };
