@@ -103,7 +103,7 @@ export function getOpenedFiles() {
 
 export function getInstruction(files: Files): string {
   const instructions = [];
-  instructions.push("INSTRUCTION:You are a helpful assistant. Keep the answers shorts");
+  instructions.push("INSTRUCTION:You are a helpful developer assistant");
 
   // fileContext
   instructions.push("Please refer the relative files in context to user query.");
