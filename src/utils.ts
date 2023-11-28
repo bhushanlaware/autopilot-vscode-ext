@@ -29,6 +29,8 @@ export async function readFiles(filePath: any) {
 
 export const modelMaxTokens = {
   //GPT 4
+  "gpt-4-1106-preview": 128000,
+  "gpt-4-vision-preview": 128000,
   "gpt-4": 8000,
   // GPT 3.5
   "gpt-3.5-turbo": 4000,

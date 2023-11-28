@@ -53,6 +53,14 @@ export const CHAT_CONTEXT = {
 };
 
 export const openaiModel = {
+  "gpt-4-1106-preview": {
+    maxToken: 128000,
+    pricingPer1kToken: 0.01,
+  },
+  "gpt-4-vision-preview": {
+    maxToken: 128000,
+    pricingPer1kToken: 0.01,
+  },
   "gpt-4": {
     maxToken: 8000,
     pricingPer1kToken: 0.03,
